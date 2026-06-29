@@ -21,6 +21,7 @@ app.use(express.json());
 app.use('/api/catalogos', catalogoRoutes); // Ruta para manejar los catálogos
 app.use('/api/ventas', ventaRoutes); // Ruta para manejar las ventas
 app.use('/api/dolar', dolarRoutes); // Ruta para obtener el valor del dólar
+app.use('/api/modificadores', catalogoRoutes); // Ruta para manejar los modificadores
 
 // Inicia la Base de Datos y LUEGO el servidor
 const iniciarServidor = async () => {

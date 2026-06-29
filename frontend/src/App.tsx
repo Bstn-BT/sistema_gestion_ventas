@@ -1,18 +1,17 @@
-import { InputDolar } from './components/molecules/InputDolar';
+import { DashboardLayout } from './components/templates/DashboardLayout';
+import { FormularioComision } from './components/organisms/FormularioComision';
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Nueva Comisión
-        </h1>
-        
-        {/* Molecule inyectada */}
-        <InputDolar />
-        
+    <DashboardLayout>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-800">Nueva Comisión</h1>
+        <p className="text-slate-500 text-sm mt-1">Registra los datos de tu nuevo encargo</p>
       </div>
-    </div>
+
+      <FormularioComision />
+      
+    </DashboardLayout>
   );
 }
 

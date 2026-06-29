@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { Label } from '../atoms/Label';
 import { Input } from '../atoms/Input';
 
-export const InputDolar = () => {
+export const InputDolar = ({ onValorChange }: { onValorChange: (value: number) => void }) => {
   // Estado para guardar el valor numérico (o un texto mientras carga)
-  const [valorDolar, setValorDolar] = useState<number | string>('Calculando...');
+  const [valorDolar, setValorDolar] = useState<number | string>('');
 
   // El useEffect se ejecuta una sola vez cuando el componente aparece en pantalla
   useEffect(() => {
@@ -15,7 +15,8 @@ export const InputDolar = () => {
         const data = await respuesta.json();
         
         if (data.exito) {
-          setValorDolar(data.paypal_estimado);
+          setValorDolar(data.paypal_estimado)
+          onValorChange(data.paypal_estimado); // Llama a la función del padre con el valor numérico
         }
       } catch (error) {
         console.error('Error conectando al backend:', error);
@@ -34,7 +35,10 @@ export const InputDolar = () => {
         type="number" 
         step="0.01"
         value={valorDolar}
-        onChange={(e) => setValorDolar(e.target.value)} // Permite que sea editable
+        onChange={(e) => {
+          setValorDolar(e.target.value);
+          onValorChange(parseFloat(e.target.value) || 0);
+        }} // Permite que sea editable
         placeholder="Ej: 915.50"
       />
       <p className="text-xs text-gray-500 mt-2">
