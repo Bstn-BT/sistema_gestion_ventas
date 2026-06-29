@@ -4,6 +4,7 @@ import dotenv from 'dotenv'; // Carga variables de entorno
 
 import { connectDB } from './config/database'; // Conexion a la base de datos
 import catalogoRoutes from './routes/catalogo.routes';
+import ventaRoutes from './routes/venta.routes';
 
 // Carga las variables del .env
 dotenv.config();
@@ -16,7 +17,8 @@ app.use(cors());
 app.use(express.json());
 
 // Rutas de la API
-app.use('/api/catalogos', catalogoRoutes); 
+app.use('/api/catalogos', catalogoRoutes); // Ruta para manejar los catálogos
+app.use('/api/ventas', ventaRoutes); // Ruta para manejar las ventas
 
 // Inicia la Base de Datos y LUEGO el servidor
 const iniciarServidor = async () => {
