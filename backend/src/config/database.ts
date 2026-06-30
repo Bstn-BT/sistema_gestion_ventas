@@ -9,9 +9,11 @@ export const pool = new Pool({
     host: process.env.DB_HOST,
     port: parseInt(process.env.DB_PORT || '5432'),
     database: process.env.DB_NAME,
+    keepAlive: true,
+    max: 10,
+    idleTimeoutMillis: 0,
 });
 
-// Función para probar la conexión cuando inicie el servidor
 export const connectDB = async () => {
     try {
         const client = await pool.connect();

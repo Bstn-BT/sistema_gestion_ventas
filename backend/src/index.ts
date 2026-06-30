@@ -1,34 +1,38 @@
-import express from 'express'; // Framework para crear el servidor y manejar rutas
-import cors from 'cors'; // Middleware para permitir solicitudes desde otros dominios
-import dotenv from 'dotenv'; // Carga variables de entorno
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
-import { connectDB } from './config/database'; // Conexion a la base de datos
+import { connectDB } from './config/database';
 import catalogoRoutes from './routes/catalogo.routes';
 import ventaRoutes from './routes/venta.routes';
 import dolarRoutes from './routes/dolar.routes';
 
-// Carga las variables del .env
 dotenv.config();
+
+// Manejadores de errores globales: si algo falla silenciosamente,
+// ahora se va a imprimir en consola en vez de matar el proceso sin avisar
+process.on('uncaughtException', (err) => {
+  console.error('=== ERROR NO CAPTURADO ===', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('=== PROMESA RECHAZADA SIN MANEJAR ===', reason);
+});
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Rutas de la API
-app.use('/api/catalogos', catalogoRoutes); // Ruta para manejar los catálogos
-app.use('/api/ventas', ventaRoutes); // Ruta para manejar las ventas
-app.use('/api/dolar', dolarRoutes); // Ruta para obtener el valor del dólar
-app.use('/api/modificadores', catalogoRoutes); // Ruta para manejar los modificadores
+app.use('/api/catalogos', catalogoRoutes);
+app.use('/api/ventas', ventaRoutes);
+app.use('/api/dolar', dolarRoutes);
+app.use('/api/modificadores', catalogoRoutes);
 
-// Inicia la Base de Datos y LUEGO el servidor
 const iniciarServidor = async () => {
-  // Intenta conectar a la base de datos antes de levantar el servidor
   await connectDB();
-  
-  // Si conecta bien, se levanta la API para escuchar a React
+
   app.listen(port, () => {
     console.log(`Servidor corriendo en http://localhost:${port}`);
   });

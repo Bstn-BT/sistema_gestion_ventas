@@ -1,8 +1,16 @@
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
+
+const navItems = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/nueva-comision', label: 'Nueva Comisión' },
+  { to: '/historial', label: 'Historial' },
+  { to: '/catalogo', label: 'Catálogo' },
+];
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   return (
@@ -15,18 +23,21 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-2">
-          <a href="#" className="flex items-center px-4 py-3 bg-gradient-to-b from-[#0e8571] to-[#0b6354] text-white rounded-lg">
-            <span className="font-medium">Dashboard</span>
-          </a>
-          <a href="#" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
-            <span className="font-medium">Nueva Comisión</span>
-          </a>
-          <a href="#" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
-            <span className="font-medium">Historial</span>
-          </a>
-          <a href="#" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
-            <span className="font-medium">Catálogo</span>
-          </a>
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center px-4 py-3 rounded-lg transition-colors font-medium ${
+                  isActive
+                    ? 'bg-gradient-to-b from-[#0e8571] to-[#0b6354] text-white'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
       </aside>
 
