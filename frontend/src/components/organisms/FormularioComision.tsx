@@ -2,18 +2,16 @@ import { useState, useMemo } from 'react';
 import { SelectEstilo } from '../molecules/SelectEstilo';
 import { ListaModificadores } from '../molecules/ListaModificadores';
 
-// Espejo exacto de las constantes del backend
+// Solo la comisión de plataforma se calcula al momento de la venta.
+// La comisión de retiro (PayPal, etc.) se calcula después, cuando
+// efectivamente marques la venta como "retirada" en el Historial.
 const COMISIONES_PLATAFORMA: Record<string, number> = {
   'VGen': 0.05,
   'TikTok': 0,
   'Twitter / X': 0,
   'Discord': 0,
   'Instagram': 0,
-};
-
-const COMISIONES_RETIRO: Record<string, number> = {
-  'PayPal': 0.035,
-  'Transferencia Bancaria': 0,
+  'Facebook': 0,
 };
 
 export const FormularioComision = () => {
@@ -25,14 +23,12 @@ export const FormularioComision = () => {
   const [totalBruto, setTotalBruto] = useState('');
   const [cargando, setCargando] = useState(false);
 
-  // Cálculo automático en tiempo real
   const resumen = useMemo(() => {
     const bruto = parseFloat(totalBruto) || 0;
     const comisionPlataforma = parseFloat((bruto * (COMISIONES_PLATAFORMA[plataforma] ?? 0)).toFixed(2));
-    const comisionRetiro = parseFloat((bruto * (COMISIONES_RETIRO[metodoPago] ?? 0)).toFixed(2));
-    const neto = parseFloat((bruto - comisionPlataforma - comisionRetiro).toFixed(2));
-    return { bruto, comisionPlataforma, comisionRetiro, neto };
-  }, [totalBruto, plataforma, metodoPago]);
+    const neto = parseFloat((bruto - comisionPlataforma).toFixed(2));
+    return { bruto, comisionPlataforma, neto };
+  }, [totalBruto, plataforma]);
 
   const handleRegistrarVenta = async () => {
     if (!nombreCliente.trim() || !idEstilo || !totalBruto) {
@@ -66,7 +62,7 @@ export const FormularioComision = () => {
       const data = await res.json();
 
       if (data.exito) {
-        alert('¡Comisión guardada exitosamente!');
+        alert(data.mensaje);
         window.location.reload();
       } else {
         alert('Error: ' + data.mensaje);
@@ -154,7 +150,7 @@ export const FormularioComision = () => {
         </div>
       </div>
 
-      {/* Resumen de comisiones en tiempo real */}
+      {/* Resumen simplificado - solo comisión de plataforma, sin retiro */}
       {resumen.bruto > 0 && (
         <div className="mt-4 max-w-sm bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-sm">
           <p className="font-semibold text-slate-700 mb-3">Desglose automático</p>
@@ -171,17 +167,14 @@ export const FormularioComision = () => {
             </div>
           )}
 
-          {resumen.comisionRetiro > 0 && (
-            <div className="flex justify-between text-red-500">
-              <span>Comisión retiro {metodoPago} ({(COMISIONES_RETIRO[metodoPago] * 100).toFixed(1)}%)</span>
-              <span>- ${resumen.comisionRetiro.toFixed(2)}</span>
-            </div>
-          )}
-
           <div className="border-t border-slate-200 pt-2 flex justify-between text-green-700 font-bold">
-            <span>Neto en tu bolsillo</span>
+            <span>Neto estimado (sin retirar)</span>
             <span>${resumen.neto.toFixed(2)}</span>
           </div>
+
+          <p className="text-xs text-slate-400 pt-1">
+            * Aún no se descuenta la comisión de retiro. Esa se calcula cuando marques la venta como "Retirada" en el Historial.
+          </p>
         </div>
       )}
 
