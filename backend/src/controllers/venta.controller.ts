@@ -4,10 +4,11 @@ import { pool } from '../config/database';
 // Comisiones por plataforma (porcentaje como decimal)
 const COMISIONES_PLATAFORMA: Record<string, number> = {
     'VGen': 0.05,
-    'Tiktok': 0,
+    'TikTok': 0,
     'Twitter / X': 0,
     'Discord': 0,
     'Instagram': 0,
+    'Facebook': 0,
 };
 
 // Comisiones de retiro por método de pago (porcentaje como decimal)
