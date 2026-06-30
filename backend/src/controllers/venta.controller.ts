@@ -31,10 +31,6 @@ export const registrarVenta = async (req: Request, res: Response) => {
         // Inserta en la tabla VENTA (Cabecera financiera)
         const queryVenta = `
             INSERT INTO VENTA (
-                fecha_venta, 
-                total_neto_usd, 
-                valor_dolar_clp, 
-                total_final_clp, 
                 nombre_cliente,
                 plataforma_origen,
                 metodo_pago,
