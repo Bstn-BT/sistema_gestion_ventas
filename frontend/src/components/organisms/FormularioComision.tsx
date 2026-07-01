@@ -133,7 +133,7 @@ export const FormularioComision = () => {
               ? 'border-red-500 focus:ring-red-400 bg-red-50' 
               : 'border-gray-300 focus:ring-blue-500 bg-white'
           }`}
-          placeholder="Ej: JohnDoe123"
+          placeholder="..."
         />
         {errores.nombreCliente && (
           <span className="text-red-500 text-xs mt-1.5 font-medium animate-pulse flex items-center">
@@ -258,7 +258,7 @@ export const FormularioComision = () => {
         disabled={cargando}
         className="mt-8 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {cargando ? 'Guardando...' : 'Registrar Comisión en Base de Datos'}
+        {cargando ? 'Guardando...' : 'Registrar Comisión'}
       </button>
 
       {mostrarPopup && (
