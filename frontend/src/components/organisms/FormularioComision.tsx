@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { SelectEstilo } from '../molecules/SelectEstilo';
 import { ListaModificadores } from '../molecules/ListaModificadores';
+import toast from 'react-hot-toast';
 
 const COMISIONES_PLATAFORMA: Record<string, number> = {
   'VGen': 0.05,
@@ -17,22 +18,19 @@ export const FormularioComision = () => {
   const [nombreCliente, setNombreCliente] = useState('');
   const [plataforma, setPlataforma] = useState('VGen');
   const [metodoPago, setMetodoPago] = useState('PayPal');
-  
-  // Cambiamos 'totalBruto' por 'precioBase'
   const [precioBase, setPrecioBase] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [errores, setErrores] = useState<Record<string, string>>({});
+
+  const [mostrarPopup, setMostrarPopup] = useState(false);
+  const [mensajeExito, setMensajeExito] = useState('');
 
   const esTransferenciaCLP = metodoPago === 'Transferencia Bancaria';
   const divisa = esTransferenciaCLP ? 'CLP' : 'USD';
 
-  // Lógica de cálculo automático
   const resumen = useMemo(() => {
     const base = parseFloat(precioBase) || 0;
-    
-    // Sumamos todos los extras que tengan un precio
     const sumaModificadores = modificadores.reduce((acc, mod) => acc + (parseFloat(mod.precio) || 0), 0);
-    
-    // El Bruto ahora es la suma automática de la Base + Extras
     const bruto = base + sumaModificadores;
     
     const comisionPlataforma = esTransferenciaCLP ? 0 : parseFloat((bruto * (COMISIONES_PLATAFORMA[plataforma] ?? 0)).toFixed(2));
@@ -45,14 +43,36 @@ export const FormularioComision = () => {
     return esTransferenciaCLP ? monto.toLocaleString('es-CL') : monto.toFixed(2);
   };
 
-  const handleRegistrarVenta = async () => {
-    if (!nombreCliente.trim() || !idEstilo || !precioBase) {
-      alert('Por favor completa el nombre del cliente, el estilo y el precio base.');
-      return;
+  const validar = () => {
+    const nuevosErrores: Record<string, string> = {};
+    
+    if (!nombreCliente.trim()) {
+      nuevosErrores.nombreCliente = 'Debes ingresar el nombre del cliente o usuario.';
+    }
+    
+    if (!idEstilo || idEstilo === 0) {
+      nuevosErrores.idEstilo = 'Por favor selecciona un estilo para el encargo.';
+    }
+    
+    if (!precioBase) {
+      nuevosErrores.precioBase = 'Ingresa el precio base del estilo.';
+    } else if (resumen.bruto <= 0) {
+      nuevosErrores.precioBase = 'El monto total debe ser mayor a 0.';
     }
 
-    if (resumen.bruto <= 0) {
-      alert('El monto total debe ser mayor a 0.');
+    setErrores(nuevosErrores);
+    return Object.keys(nuevosErrores).length === 0;
+  };
+
+  const handleRegistrarVenta = async () => {
+    if (!validar()) {
+      toast.error('Faltan campos por completar', { icon: '⚠️' });
+      setTimeout(() => {
+        const primerError = document.querySelector('[data-error="true"]');
+        if (primerError) {
+          primerError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
       return;
     }
 
@@ -78,36 +98,48 @@ export const FormularioComision = () => {
       const data = await res.json();
 
       if (data.exito) {
-        alert(data.mensaje);
-        window.location.reload();
+        setMensajeExito(data.mensaje);
+        setMostrarPopup(true);
       } else {
-        alert('Error: ' + data.mensaje);
+        toast.error(data.mensaje);
       }
     } catch (error) {
       console.error('Error enviando la venta:', error);
-      alert('Error de conexión con el servidor.');
+      toast.error('Error de conexión con el servidor.');
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm w-full max-w-2xl">
+    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm w-full max-w-2xl relative">
       <h2 className="text-lg font-semibold text-slate-800 mb-6 border-b pb-4">
         Detalles del Encargo y Finanzas
       </h2>
 
-      <div className="mb-4 flex flex-col w-full max-w-sm">
+      <div className="mb-4 flex flex-col w-full max-w-sm" data-error={!!errores.nombreCliente}>
         <label className="block text-sm font-semibold text-gray-700 mb-1">
           Nombre del Cliente / User
         </label>
         <input
           type="text"
           value={nombreCliente}
-          onChange={(e) => setNombreCliente(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          placeholder="..."
+          onChange={(e) => {
+            setNombreCliente(e.target.value);
+            if (errores.nombreCliente) setErrores({ ...errores, nombreCliente: '' });
+          }}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+            errores.nombreCliente 
+              ? 'border-red-500 focus:ring-red-400 bg-red-50' 
+              : 'border-gray-300 focus:ring-blue-500 bg-white'
+          }`}
+          placeholder="Ej: JohnDoe123"
         />
+        {errores.nombreCliente && (
+          <span className="text-red-500 text-xs mt-1.5 font-medium animate-pulse flex items-center">
+            <span className="mr-1">▲</span> {errores.nombreCliente}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 max-w-xl">
@@ -142,25 +174,48 @@ export const FormularioComision = () => {
 
       <hr className="border-slate-100 my-5" />
 
-      <SelectEstilo onEstiloChange={setIdEstilo} />
+      <div data-error={!!errores.idEstilo} className="relative">
+        <SelectEstilo onEstiloChange={(id) => {
+          setIdEstilo(id);
+          if (errores.idEstilo) setErrores({ ...errores, idEstilo: '' });
+        }} />
+        {errores.idEstilo && (
+          <span className="text-red-500 text-xs mt-1 font-medium animate-pulse flex items-center">
+            <span className="mr-1">▲</span> {errores.idEstilo}
+          </span>
+        )}
+      </div>
+
       <ListaModificadores onExtrasChange={setModificadores} divisa={divisa} />
 
-      <div className="mt-6 flex flex-col w-full max-w-sm">
+      <div className="mt-6 flex flex-col w-full max-w-sm" data-error={!!errores.precioBase}>
         <label className="block text-sm font-semibold text-gray-700 mb-1">
           Precio Base del Estilo ({divisa})
         </label>
         <div className="relative rounded-lg">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-blue-500 font-bold text-sm">$</span>
+            <span className={`font-bold text-sm ${errores.precioBase ? 'text-red-500' : 'text-blue-500'}`}>$</span>
           </div>
           <input
             type="number"
             placeholder={esTransferenciaCLP ? "15000" : "0.00"}
             value={precioBase}
-            onChange={(e) => setPrecioBase(e.target.value)}
-            className="w-full pl-8 pr-4 py-2 border border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-blue-50 text-blue-900 font-bold"
+            onChange={(e) => {
+              setPrecioBase(e.target.value);
+              if (errores.precioBase) setErrores({ ...errores, precioBase: '' });
+            }}
+            className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 font-bold transition-colors ${
+              errores.precioBase 
+                ? 'border-red-500 focus:ring-red-400 bg-red-50 text-red-900' 
+                : 'border-blue-400 focus:ring-blue-600 bg-blue-50 text-blue-900'
+            }`}
           />
         </div>
+        {errores.precioBase && (
+          <span className="text-red-500 text-xs mt-1.5 font-medium animate-pulse flex items-center">
+            <span className="mr-1">▲</span> {errores.precioBase}
+          </span>
+        )}
       </div>
 
       {resumen.bruto > 0 && (
@@ -205,6 +260,28 @@ export const FormularioComision = () => {
       >
         {cargando ? 'Guardando...' : 'Registrar Comisión en Base de Datos'}
       </button>
+
+      {mostrarPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl border border-slate-100">
+            <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-green-100 text-green-600 mb-4 shadow-inner">
+              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2 tracking-tight">¡Comisión Registrada!</h3>
+            <p className="text-sm text-slate-500 mb-6 font-medium leading-relaxed">
+              {mensajeExito}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg shadow-green-600/20 cursor-pointer"
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
