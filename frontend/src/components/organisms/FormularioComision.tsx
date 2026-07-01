@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { SelectEstilo } from '../molecules/SelectEstilo';
 import { ListaModificadores } from '../molecules/ListaModificadores';
 import toast from 'react-hot-toast';
@@ -10,6 +10,114 @@ const COMISIONES_PLATAFORMA: Record<string, number> = {
   'Discord': 0,
   'Instagram': 0,
   'Facebook': 0,
+};
+
+// Dropdown para plataformas usando imágenes desde public/
+const PlatformDropdown = ({ plataforma, setPlataforma }: { plataforma: string; setPlataforma: (v: string) => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, []);
+
+  const options = [
+    { label: 'VGen', value: 'VGen', img: '/Vgen.png' },
+    { label: 'TikTok', value: 'TikTok', img: '/tiktok.webp' },
+    { label: 'Twitter / X', value: 'Twitter / X', img: '/twitter.png' },
+    { label: 'Discord', value: 'Discord', img: '/discord.svg' },
+    { label: 'Instagram', value: 'Instagram', img: '/Instagram.png' },
+    { label: 'Facebook', value: 'Facebook', img: '/facebook.png' },
+  ];
+
+  const selected = options.find(o => o.value === plataforma) || options[0];
+
+  return (
+    <div className="flex flex-col relative" ref={ref}>
+      <label className="block text-sm font-semibold text-gray-700 mb-1">Plataforma</label>
+      <button type="button" onClick={() => setOpen(!open)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm flex items-center justify-between">
+        <div className="flex items-center">
+          {selected.img ? (
+            <img
+              src={selected.img}
+              alt={selected.label}
+              className="h-5 w-5 mr-3 rounded-sm object-contain"
+              style={selected.value === 'Twitter / X' ? { transform: 'scale(2.2)' } : undefined}
+            />
+          ) : <span className="inline-block h-5 w-5 mr-3 bg-slate-200 rounded-sm" />}
+          <span className="text-sm">{selected.label}</span>
+        </div>
+        <svg className="h-4 w-4 text-slate-500" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+
+      {open && (
+        <ul className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-md max-h-56 overflow-auto">
+          {options.map(opt => (
+            <li key={opt.value} className="px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center" onClick={() => { setPlataforma(opt.value); setOpen(false); }}>
+              {opt.img ? (
+                <img
+                  src={opt.img}
+                  alt={opt.label}
+                  className="h-5 w-5 mr-3 rounded-sm object-contain"
+                  style={opt.value === 'Twitter / X' ? { transform: 'scale(2.2)' } : undefined}
+                />
+              ) : <span className="inline-block h-5 w-5 mr-3 bg-slate-200 rounded-sm" />}
+              <span className="text-sm text-slate-700">{opt.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+// Dropdown para métodos de pago (incluye PayPal en public/)
+const PaymentDropdown = ({ metodoPago, setMetodoPago }: { metodoPago: string; setMetodoPago: (v: string) => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, []);
+
+  const options = [
+    { label: 'PayPal', value: 'PayPal', img: '/PayPal.png' },
+    { label: 'Transferencia Bancaria', value: 'Transferencia Bancaria', img: '/transferencia.png' },
+  ];
+
+  const selected = options.find(o => o.value === metodoPago) || options[0];
+
+  return (
+    <div className="flex flex-col relative" ref={ref}>
+      <label className="block text-sm font-semibold text-gray-700 mb-1">Método de Pago</label>
+      <button type="button" onClick={() => setOpen(!open)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm flex items-center justify-between">
+        <div className="flex items-center">
+          {selected.img ? <img src={selected.img} alt={selected.label} className="h-5 w-5 mr-3 rounded-sm" /> : <span className="inline-block h-5 w-5 mr-3 bg-slate-200 rounded-sm" />}
+          <span className="text-sm">{selected.label}</span>
+        </div>
+        <svg className="h-4 w-4 text-slate-500" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+
+      {open && (
+        <ul className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-md max-h-56 overflow-auto">
+          {options.map(opt => (
+            <li key={opt.value} className="px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center" onClick={() => { setMetodoPago(opt.value); setOpen(false); }}>
+              {opt.img ? <img src={opt.img} alt={opt.label} className="h-5 w-5 mr-3 rounded-sm" /> : <span className="inline-block h-5 w-5 mr-3 bg-slate-200 rounded-sm" />}
+              <span className="text-sm text-slate-700">{opt.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 };
 
 export const FormularioComision = () => {
@@ -143,33 +251,17 @@ export const FormularioComision = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 max-w-xl">
-        <div className="flex flex-col">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Plataforma</label>
-          <select
-            value={plataforma}
-            onChange={(e) => setPlataforma(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="VGen">VGen</option>
-            <option value="TikTok">TikTok</option>
-            <option value="Twitter / X">Twitter / X</option>
-            <option value="Discord">Discord</option>
-            <option value="Instagram">Instagram</option>
-            <option value="Facebook">Facebook</option>
-          </select>
-        </div>
+        {/* Plataformas dropdown with icons from public/ */}
+        <PlatformDropdown
+          plataforma={plataforma}
+          setPlataforma={setPlataforma}
+        />
 
-        <div className="flex flex-col">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Método de Pago</label>
-          <select
-            value={metodoPago}
-            onChange={(e) => setMetodoPago(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="PayPal">PayPal</option>
-            <option value="Transferencia Bancaria">Transferencia Bancaria</option>
-          </select>
-        </div>
+        {/* Métodos de pago dropdown with PayPal icon */}
+        <PaymentDropdown
+          metodoPago={metodoPago}
+          setMetodoPago={setMetodoPago}
+        />
       </div>
 
       <hr className="border-slate-100 my-5" />
