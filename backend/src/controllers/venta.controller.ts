@@ -284,3 +284,71 @@ export const obtenerVentaPorId = async (req: Request, res: Response) => {
         res.status(500).json({ exito: false, mensaje: 'Error al obtener la venta' });
     }
 };
+
+// Retiro Masivo
+export const retirarMasivo = async (req: Request, res: Response) => {
+    const client = await pool.connect();
+
+    try {
+        const { ids, valor_dolar } = req.body;
+
+        if (!ids || ids.length === 0 || !valor_dolar) {
+            return res.status(400).json({ exito: false, mensaje: 'Faltan datos para el retiro masivo' });
+        }
+
+        await client.query('BEGIN');
+
+        // Busca todas las ventas seleccionadas que estén pendientes
+        const queryVentas = `SELECT id_venta, total_bruto_usd, comision_plataforma_usd FROM VENTA WHERE id_venta = ANY($1) AND estado_retiro = 'pendiente'`;
+        const resultVentas = await client.query(queryVentas, [ids]);
+        const ventas = resultVentas.rows;
+
+        if (ventas.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ exito: false, mensaje: 'No hay ventas válidas para retirar' });
+        }
+
+        // Define las reglas de negocio de PayPal
+        const PORCENTAJE_PAYPAL = 0.035; // 3.5%
+        const TARIFA_FIJA_CLP = 800;     // $800 pesos por TODO el bloque
+        
+        // Divide los $800 equitativamente entre las comisiones que estamos retirando
+        const tarifaFijaPorVentaCLP = TARIFA_FIJA_CLP / ventas.length;
+
+        for (const venta of ventas) {
+            const brutoUSD = parseFloat(venta.total_bruto_usd);
+            const comisionPlataformaUSD = parseFloat(venta.comision_plataforma_usd);
+            
+            // Calcula el 3.5% de PayPal
+            const comisionRetiroUSD = parseFloat((brutoUSD * PORCENTAJE_PAYPAL).toFixed(2));
+            
+            // Calcula cuánto USD real nos queda para convertir a CLP
+            const netoUSDFinal = brutoUSD - comisionPlataformaUSD - comisionRetiroUSD;
+            
+            // Convierte a CLP y le restamos su "cuota" de los $800 pesos
+            const clpConvertido = netoUSDFinal * parseFloat(valor_dolar);
+            const totalFinalCLP = Math.max(0, Math.round(clpConvertido - tarifaFijaPorVentaCLP));
+
+            // Actualiza la base de datos
+            await client.query(`
+                UPDATE VENTA 
+                SET comision_retiro_usd = $1,
+                    total_neto_usd = $2,
+                    total_final_clp = $3,
+                    estado_retiro = 'retirado',
+                    fecha_retiro = CURRENT_DATE
+                WHERE id_venta = $4
+            `, [comisionRetiroUSD, netoUSDFinal, totalFinalCLP, venta.id_venta]);
+        }
+
+        await client.query('COMMIT');
+        res.status(200).json({ exito: true, mensaje: `¡Se retiraron ${ventas.length} ventas cobrando solo $800 CLP en total!` });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en retiro masivo:', error);
+        res.status(500).json({ exito: false, mensaje: 'Error al procesar el retiro masivo' });
+    } finally {
+        client.release();
+    }
+};
