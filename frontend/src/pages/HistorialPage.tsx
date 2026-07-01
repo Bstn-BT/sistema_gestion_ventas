@@ -23,17 +23,21 @@ interface DetalleVenta extends Venta {
 }
 
 export const HistorialPage = () => {
+  // Estados principales
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
   
+  // Estados para selección de ventas y retiro masivo
   const [seleccionadas, setSeleccionadas] = useState<number[]>([]);
   const [procesandoMasivo, setProcesandoMasivo] = useState(false);
 
+  // Modal de detalle de venta
   const [modalAbierto, setModalAbierto] = useState(false);
   const [detalleVenta, setDetalleVenta] = useState<DetalleVenta | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [boletaVista, setBoletaVista] = useState<'comercial' | 'bancaria'>('comercial');
 
+  // Modal de retiro masivo
   const [modalDolar, setModalDolar] = useState(false);
   const [valorDolarInput, setValorDolarInput] = useState('');
   const [errorDolar, setErrorDolar] = useState('');
