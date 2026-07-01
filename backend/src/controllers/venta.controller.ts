@@ -47,13 +47,26 @@ export const registrarVenta = async (req: Request, res: Response) => {
             });
         }
 
-        // Solo calculamos la comisión de PLATAFORMA, que es inmediata (VGen cobra apenas vendes)
-        // La comisión de RETIRO (PayPal) se calcula después, cuando efectivamente retires el dinero
         const porcentajePlataforma = COMISIONES_PLATAFORMA[plataforma_origen] ?? 0;
-        const comision_plataforma_usd = parseFloat((bruto * porcentajePlataforma).toFixed(2));
+        
+        // --- LÓGICA DE MONEDAS Y ESTADOS ---
+        let bruto_usd = bruto;
+        let comision_plataforma_usd = parseFloat((bruto * porcentajePlataforma).toFixed(2));
+        let neto_usd = parseFloat((bruto - comision_plataforma_usd).toFixed(2));
+        let final_clp = 0; 
+        
+        let estado_retiro = 'pendiente';
 
-        // Por ahora el neto = bruto - comisión plataforma (sin descontar retiro todavía)
-        const total_neto_usd = parseFloat((bruto - comision_plataforma_usd).toFixed(2));
+        // Si es transferencia bancaria, intercepta los datos
+        if (metodo_pago === 'Transferencia Bancaria') {
+            estado_retiro = 'retirado';
+            
+            // Mueve el valor digitado a CLP y vaciamos los USD para que no se mezclen
+            final_clp = bruto; 
+            bruto_usd = 0;
+            neto_usd = 0;
+            comision_plataforma_usd = 0; 
+        }
 
         await client.query('BEGIN');
 
@@ -68,9 +81,11 @@ export const registrarVenta = async (req: Request, res: Response) => {
                 comision_plataforma_usd,
                 comision_retiro_usd,
                 total_neto_usd,
-                estado_retiro
+                total_final_clp,
+                estado_retiro,
+                fecha_retiro
             )
-            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, 0, $7, 'pendiente')
+            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, 0, $7, $8, $9, ${estado_retiro === 'retirado' ? 'CURRENT_DATE' : 'NULL'})
             RETURNING id_venta;
         `;
 
@@ -78,10 +93,12 @@ export const registrarVenta = async (req: Request, res: Response) => {
             nombre_cliente.trim(),
             plataforma_origen,
             metodo_pago,
-            moneda_origen || 'USD',
-            bruto,
+            metodo_pago === 'Transferencia Bancaria' ? 'CLP' : (moneda_origen || 'USD'),
+            bruto_usd,
             comision_plataforma_usd,
-            total_neto_usd,
+            neto_usd,
+            final_clp,
+            estado_retiro
         ]);
 
         const idVenta = resVenta.rows[0].id_venta;
@@ -110,13 +127,16 @@ export const registrarVenta = async (req: Request, res: Response) => {
 
         res.status(201).json({
             exito: true,
-            mensaje: '¡Comisión registrada con éxito! Recuerda marcarla como "retirada" cuando muevas el dinero a tu banco.',
+            mensaje: estado_retiro === 'retirado' 
+                ? '¡Comisión registrada! Al ser transferencia, se guardó directamente en CLP y está marcada como retirada.' 
+                : '¡Comisión registrada con éxito! Recuerda marcarla como "retirada" cuando muevas el dinero a tu banco.',
             id_venta: idVenta,
             resumen: {
-                total_bruto_usd: bruto,
+                total_bruto_usd: bruto_usd,
                 comision_plataforma_usd,
-                total_neto_usd,
-                estado_retiro: 'pendiente',
+                total_neto_usd: neto_usd,
+                total_final_clp: final_clp,
+                estado_retiro
             }
         });
 
@@ -132,15 +152,12 @@ export const registrarVenta = async (req: Request, res: Response) => {
     }
 };
 
-// Nuevo endpoint: marcar una venta como retirada
-// Aquí SÍ se calcula y descuenta la comisión de retiro (PayPal, etc.)
 export const marcarComoRetirada = async (req: Request, res: Response) => {
     const client = await pool.connect();
 
     try {
         const { id } = req.params;
 
-        // Buscamos la venta para saber su método de pago y monto bruto
         const ventaActual = await client.query(
             'SELECT total_bruto_usd, metodo_pago, estado_retiro FROM VENTA WHERE id_venta = $1',
             [id]
@@ -160,7 +177,6 @@ export const marcarComoRetirada = async (req: Request, res: Response) => {
         const porcentajeRetiro = COMISIONES_RETIRO[venta.metodo_pago] ?? 0;
         const comision_retiro_usd = parseFloat((bruto * porcentajeRetiro).toFixed(2));
 
-        // Recalculamos el neto: bruto - comisión plataforma (ya guardada) - comisión retiro (ahora)
         const ventaCompleta = await client.query(
             'SELECT comision_plataforma_usd FROM VENTA WHERE id_venta = $1',
             [id]
@@ -208,6 +224,7 @@ export const obtenerVentas = async (req: Request, res: Response) => {
                 v.comision_plataforma_usd,
                 v.comision_retiro_usd,
                 v.total_neto_usd,
+                v.total_final_clp,
                 v.estado_retiro,
                 v.fecha_retiro,
                 tc.nombre_estilo

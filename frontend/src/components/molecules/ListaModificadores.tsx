@@ -6,12 +6,13 @@ interface Modificador {
   nombre: string;
 }
 
-// Define las props para comunicarnos con el padre (FormularioComision)
+// Define las props: ahora pedimos la divisa (USD o CLP)
 interface ListaModificadoresProps {
   onExtrasChange: (extras: any[]) => void;
+  divisa: string;
 }
 
-export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) => {
+export const ListaModificadores = ({ onExtrasChange, divisa }: ListaModificadoresProps) => {
   const [modificadores, setModificadores] = useState<Modificador[]>([]);
   const [seleccionados, setSeleccionados] = useState<{ [key: number]: boolean }>({});
   const [preciosLocales, setPreciosLocales] = useState<{ [key: number]: string }>({});
@@ -32,29 +33,25 @@ export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) 
     }
   };
 
-  // Carga inicial al montar el componente
   useEffect(() => {
     cargarModificadores();
   }, []);
 
-  // Avisa al componente padre cada vez que seleccionados o preciosLocales cambien
+  // Avisa al componente padre
   useEffect(() => {
     const extrasActivos = Object.keys(seleccionados)
       .filter(id => seleccionados[Number(id)])
       .map(id => ({
         id: Number(id),
-        precio: preciosLocales[Number(id)] || 0 // Si no le puso precio, enviamos 0
+        precio: preciosLocales[Number(id)] || 0 
       }));
       
-    // Dispara la función del padre
     onExtrasChange(extrasActivos);
   }, [seleccionados, preciosLocales, onExtrasChange]); 
 
-  // Maneja el cambio de estado del checkbox
   const handleCheckboxChange = (id: number) => {
     setSeleccionados(prev => ({ ...prev, [id]: !prev[id] }));
     if (seleccionados[id]) {
-      // Si el usuario desmarca el checkbox, limpia el precio que había escrito
       setPreciosLocales(prev => {
         const copia = { ...prev };
         delete copia[id];
@@ -63,7 +60,6 @@ export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) 
     }
   };
 
-  // Guarda un nuevo modificador en la base de datos PostgreSQL
   const handleAgregarNuevoExtra = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoExtra.trim()) return;
@@ -78,7 +74,7 @@ export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) 
 
       if (data.exito) {
         setNuevoExtra('');
-        await cargarModificadores(); // Recarga la lista directo de la base de datos
+        await cargarModificadores(); 
       } else {
         alert(data.mensaje);
       }
@@ -91,7 +87,6 @@ export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) 
     <div className="mt-6">
       <p className="text-sm font-semibold text-slate-700 mb-3">Extras / Modificadores</p>
       
-      {/* Lista de modificadores dinámicos */}
       <div className="space-y-2 max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-slate-50 mb-4">
         {modificadores.map((mod) => (
           <div key={mod.id} className="flex items-center justify-between p-2 bg-white rounded-md border border-slate-100 shadow-xs">
@@ -106,13 +101,12 @@ export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) 
               <span className="text-sm text-slate-700 font-medium">{mod.nombre}</span>
             </label>
 
-            {/* Si está seleccionado, muestra el input de precio */}
             {seleccionados[mod.id] && (
               <div className="flex items-center space-x-1">
-                <span className="text-xs text-slate-400 font-semibold">USD</span>
+                <span className="text-xs text-slate-400 font-semibold">{divisa}</span>
                 <input 
                   type="number"
-                  placeholder="Precio"
+                  placeholder={divisa === 'CLP' ? "5000" : "Precio"}
                   value={preciosLocales[mod.id] || ''}
                   onChange={(e) => setPreciosLocales(prev => ({ ...prev, [mod.id]: e.target.value }))}
                   className="w-20 px-2 py-1 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
@@ -124,7 +118,6 @@ export const ListaModificadores = ({ onExtrasChange }: ListaModificadoresProps) 
         ))}
       </div>
 
-      {/* Formulario interno para agregar una opción nueva */}
       <form onSubmit={handleAgregarNuevoExtra} className="flex space-x-2">
         <input 
           type="text"

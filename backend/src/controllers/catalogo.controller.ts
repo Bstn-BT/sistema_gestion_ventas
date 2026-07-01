@@ -29,7 +29,7 @@ export const crearModificador = async (req: Request, res: Response) => {
             return res.status(400).json({ exito: false, mensaje: 'El nombre es obligatorio' });
         }
 
-        // Insertamos el nuevo extra usando el pool de conexiones
+        // Inserta el nuevo extra usando el pool de conexiones
         const query = 'INSERT INTO MODIFICADOR (nombre_modificador) VALUES ($1) RETURNING *';
         const result = await pool.query(query, [nombre_modificador]);
 
@@ -39,7 +39,7 @@ export const crearModificador = async (req: Request, res: Response) => {
             modificador: result.rows[0]
         });
     } catch (error: any) {
-        // Si el nombre ya existe por la restricción UNIQUE, manejamos el caso
+        // Si el nombre ya existe por la restricción UNIQUE, maneja el caso
         if (error.code === '23505') {
             return res.status(400).json({ exito: false, mensaje: 'Este extra ya existe en el catálogo' });
         }
