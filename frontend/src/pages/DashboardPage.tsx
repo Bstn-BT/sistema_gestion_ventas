@@ -115,7 +115,7 @@ export const DashboardPage = () => {
           <h3 className="text-3xl font-black text-amber-600">
             ${metricas.usdPendiente.toFixed(2)}
           </h3>
-          <p className="text-xs text-slate-400 font-medium mt-2">En PayPal / Otras plataformas</p>
+          <p className="text-xs text-slate-400 font-medium mt-2">PayPal</p>
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
@@ -123,7 +123,7 @@ export const DashboardPage = () => {
           <h3 className="text-3xl font-black text-blue-600">
             ${metricas.usdRetirado.toFixed(2)}
           </h3>
-          <p className="text-xs text-slate-400 font-medium mt-2">Dinero ya procesado</p>
+          <p className="text-xs text-slate-400 font-medium mt-2">Dinero procesado</p>
         </div>
       </div>
 
