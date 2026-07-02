@@ -14,6 +14,21 @@ interface Venta {
   estado_retiro: 'pendiente' | 'retirado';
 }
 
+// Tooltip personalizado para el gráfico de barras
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white/95 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg border border-slate-100">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
+        <p className="text-lg font-black" style={{ color: '#1B4361' }}>
+          ${payload[0].value.toFixed(2)} <span className="text-xs font-medium text-slate-400">USD</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export const DashboardPage = () => {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -86,8 +101,8 @@ export const DashboardPage = () => {
     return { clpGanado, usdPendiente, usdRetirado, datosPlataformas, datosMeses };
   }, [ventas]);
 
-  // Colores para el gráfico de pastel
-  const COLORES_PASTEL = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+  // Paleta de la marca aplicada a ambos gráficos
+  const COLORES_PASTEL = ['#1B4361', '#AB273B', '#0C2245', '#52171E'];
 
   if (cargando) {
     return <div className="p-8 text-center text-slate-500">Cargando métricas...</div>;
@@ -136,23 +151,53 @@ export const DashboardPage = () => {
         
         {/* GRÁFICO DE BARRAS: Ingresos mensuales */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-base font-bold text-slate-800 mb-6">Evolución de Ingresos (USD)</h3>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Evolución de Ingresos (USD)</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Neto mensual recibido por plataformas digitales</p>
+            </div>
+          </div>
           <div className="h-72 w-full">
             {metricas.datosMeses.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={metricas.datosMeses} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} />
-                  <Tooltip 
-                    cursor={{ fill: '#F1F5F9' }}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#1B4361" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#0C2245" stopOpacity={0.9} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis
+                    dataKey="mes"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#64748B', fontWeight: 500 }}
+                    dy={10}
                   />
-                  <Bar dataKey="ingresos" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Neto USD" />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#94A3B8' }}
+                    tickFormatter={(v) => `$${v}`}
+                  />
+                  <Tooltip cursor={{ fill: '#F8FAFC' }} content={<CustomTooltip />} />
+                  <Bar
+                    dataKey="ingresos"
+                    fill="url(#barGradient)"
+                    radius={[8, 8, 0, 0]}
+                    name="Neto USD"
+                    maxBarSize={48}
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm">No hay datos suficientes para graficar.</div>
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
+                <span className="text-3xl">📊</span>
+                No hay datos suficientes para graficar.
+              </div>
             )}
           </div>
         </div>
