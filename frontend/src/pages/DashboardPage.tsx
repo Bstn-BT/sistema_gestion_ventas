@@ -101,26 +101,30 @@ export const DashboardPage = () => {
       </div>
 
       {/* TARJETAS DE RESUMEN (KPIs) */}
+      {/* #AB273B */}
+      {/* #52171E */}
+      {/* #1B4361 */}
+      {/* #0C2245 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#1B4361' }}>
           <p className="text-sm font-semibold text-slate-500 mb-1">Total CLP Generado</p>
-          <h3 className="text-3xl font-black text-slate-800">
+          <h3 className="text-3xl font-black" style={{ color: '#1B4361' }}>
             ${metricas.clpGanado.toLocaleString('es-CL')}
           </h3>
           <p className="text-xs text-green-600 font-medium mt-2">↑ Ingresos limpios en cuenta</p>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-amber-400">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#AB273B' }}>
           <p className="text-sm font-semibold text-slate-500 mb-1">USD Pendiente (Por Retirar)</p>
-          <h3 className="text-3xl font-black text-amber-600">
+          <h3 className="text-3xl font-black" style={{ color: '#AB273B' }}>
             ${metricas.usdPendiente.toFixed(2)}
           </h3>
           <p className="text-xs text-slate-400 font-medium mt-2">PayPal</p>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#52171E' }}>
           <p className="text-sm font-semibold text-slate-500 mb-1">USD Histórico Retirado</p>
-          <h3 className="text-3xl font-black text-blue-600">
+          <h3 className="text-3xl font-black" style={{ color: '#52171E' }}>
             ${metricas.usdRetirado.toFixed(2)}
           </h3>
           <p className="text-xs text-slate-400 font-medium mt-2">Dinero procesado</p>
