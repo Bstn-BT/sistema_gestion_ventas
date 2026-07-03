@@ -102,7 +102,7 @@ export const DashboardPage = () => {
   }, [ventas]);
 
   // Paleta de la marca aplicada a ambos gráficos
-  const COLORES_PASTEL = ['#1B4361', '#AB273B', '#0C2245', '#52171E'];
+  const COLORES_PASTEL = ['#1B4361', '#AB273B', '#02112B', '#0e8571', '#76499C', '#096E2E'];
 
   if (cargando) {
     return <div className="p-8 text-center text-slate-500">Cargando métricas...</div>;
@@ -137,9 +137,9 @@ export const DashboardPage = () => {
           <p className="text-xs text-slate-400 font-medium mt-2">PayPal</p>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#52171E' }}>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#76499C' }}>
           <p className="text-sm font-semibold text-slate-500 mb-1">USD Histórico Retirado</p>
-          <h3 className="text-3xl font-black" style={{ color: '#52171E' }}>
+          <h3 className="text-3xl font-black" style={{ color: '#76499C' }}>
             ${metricas.usdRetirado.toFixed(2)}
           </h3>
           <p className="text-xs text-slate-400 font-medium mt-2">Dinero procesado</p>
@@ -209,7 +209,7 @@ export const DashboardPage = () => {
               <h3 className="text-base font-bold text-slate-800">Comisiones por Plataforma</h3>
               <p className="text-xs text-slate-400 mt-1">Conteo de pedidos por plataforma con su color asociado</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1">
               {metricas.datosPlataformas.map((item, index) => (
                 <span key={item.name} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
                   <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORES_PASTEL[index % COLORES_PASTEL.length] }} />
