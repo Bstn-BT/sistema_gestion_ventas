@@ -55,7 +55,7 @@ const PlatformDropdown = ({ plataforma, setPlataforma }: { plataforma: string; s
       </button>
 
       {open && (
-        <ul className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-md max-h-56 overflow-auto">
+        <ul className="absolute top-full left-0 z-20 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-md max-h-56 overflow-auto">
           {options.map(opt => (
             <li key={opt.value} className="px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center" onClick={() => { setPlataforma(opt.value); setOpen(false); }}>
               {opt.img ? (
@@ -107,7 +107,7 @@ const PaymentDropdown = ({ metodoPago, setMetodoPago }: { metodoPago: string; se
       </button>
 
       {open && (
-        <ul className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-md max-h-56 overflow-auto">
+        <ul className="absolute top-full left-0 z-20 mt-2 w-full bg-white border border-slate-200 rounded-lg shadow-md max-h-56 overflow-auto">
           {options.map(opt => (
             <li key={opt.value} className="px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center" onClick={() => { setMetodoPago(opt.value); setOpen(false); }}>
               {opt.img ? <img src={opt.img} alt={opt.label} className="h-5 w-5 mr-3 rounded-sm" /> : <span className="inline-block h-5 w-5 mr-3 bg-slate-200 rounded-sm" />}

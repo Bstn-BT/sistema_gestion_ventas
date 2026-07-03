@@ -204,7 +204,20 @@ export const DashboardPage = () => {
 
         {/* GRÁFICO DE PASTEL: Distribución de plataformas */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-base font-bold text-slate-800 mb-6">Comisiones por Plataforma</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Comisiones por Plataforma</h3>
+              <p className="text-xs text-slate-400 mt-1">Conteo de pedidos por plataforma con su color asociado</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {metricas.datosPlataformas.map((item, index) => (
+                <span key={item.name} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORES_PASTEL[index % COLORES_PASTEL.length] }} />
+                  {item.name}: {item.value}
+                </span>
+              ))}
+            </div>
+          </div>
           <div className="h-72 w-full">
             {metricas.datosPlataformas.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
