@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 interface Venta {
@@ -22,11 +22,206 @@ interface DetalleVenta extends Venta {
   modificadores: { nombre: string; precio: string }[];
 }
 
+interface Filtros {
+  busqueda: string;
+  plataforma: string;
+  metodoPago: string;
+  estado: string;
+  fechaDesde: string;
+  fechaHasta: string;
+}
+
+const FILTROS_INICIALES: Filtros = {
+  busqueda: '',
+  plataforma: '',
+  metodoPago: '',
+  estado: '',
+  fechaDesde: '',
+  fechaHasta: '',
+};
+
+// Iconos
+const PLATAFORMAS = [
+  { label: 'VGen', value: 'VGen', img: '/Vgen.png' },
+  { label: 'TikTok', value: 'TikTok', img: '/tiktok.webp' },
+  { label: 'Twitter / X', value: 'Twitter / X', img: '/twitter.png' },
+  { label: 'Discord', value: 'Discord', img: '/discord.svg' },
+  { label: 'Instagram', value: 'Instagram', img: '/Instagram.png' },
+  { label: 'Facebook', value: 'Facebook', img: '/facebook.png' },
+];
+
+// Iconos de métodos de pago
+const METODOS_PAGO = [
+  { label: 'PayPal', value: 'PayPal', img: '/PayPal.png' },
+  { label: 'Transferencia Bancaria', value: 'Transferencia Bancaria', img: '/transferencia.png' },
+];
+
+const getPlataformaIcon = (nombre: string) => PLATAFORMAS.find((p) => p.value === nombre)?.img;
+const getMetodoIcon = (nombre: string) => METODOS_PAGO.find((m) => m.value === nombre)?.img;
+
+const VENTAS_POR_PAGINA = 10;
+
+const IconSearch = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75" />
+    <path d="m20 20-3.2-3.2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
+
+const IconFilter = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 5h16M7 12h10M10 19h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconX = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
+
+const IconChevron = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// Dropdown de filtro con ícono — Plataforma
+const PlataformaFiltroDropdown = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, []);
+
+  const opciones = [{ label: 'Todas', value: '', img: null as string | null }, ...PLATAFORMAS];
+  const seleccionada = opciones.find((o) => o.value === value) || opciones[0];
+
+  return (
+    <div className="flex flex-col relative" ref={ref}>
+      <label className="text-xs font-semibold text-slate-500 mb-1.5">Plataforma</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+      >
+        <div className="flex items-center min-w-0">
+          {seleccionada.img ? (
+            <img
+              src={seleccionada.img}
+              alt=""
+              className="h-4 w-4 mr-2 rounded-sm object-contain shrink-0"
+              style={seleccionada.value === 'Twitter / X' ? { transform: 'scale(1.8)' } : undefined}
+            />
+          ) : (
+            <span className="inline-block h-4 w-4 mr-2 shrink-0" />
+          )}
+          <span className="text-slate-700 truncate">{seleccionada.label}</span>
+        </div>
+        <IconChevron className="h-4 w-4 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (
+        <ul className="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          {opciones.map((opt) => (
+            <li
+              key={opt.value || 'todas'}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center ${opt.value === value ? 'bg-blue-50' : ''}`}
+            >
+              {opt.img ? (
+                <img
+                  src={opt.img}
+                  alt=""
+                  className="h-4 w-4 mr-2 rounded-sm object-contain shrink-0"
+                  style={opt.value === 'Twitter / X' ? { transform: 'scale(1.8)' } : undefined}
+                />
+              ) : (
+                <span className="inline-block h-4 w-4 mr-2 shrink-0" />
+              )}
+              <span className="text-sm text-slate-700">{opt.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+// Dropdown de filtro con ícono — Método de pago
+const MetodoPagoFiltroDropdown = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, []);
+
+  const opciones = [{ label: 'Todos', value: '', img: null as string | null }, ...METODOS_PAGO];
+  const seleccionada = opciones.find((o) => o.value === value) || opciones[0];
+
+  return (
+    <div className="flex flex-col relative" ref={ref}>
+      <label className="text-xs font-semibold text-slate-500 mb-1.5">Método de pago</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+      >
+        <div className="flex items-center min-w-0">
+          {seleccionada.img ? (
+            <img src={seleccionada.img} alt="" className="h-4 w-4 mr-2 rounded-sm object-contain shrink-0" />
+          ) : (
+            <span className="inline-block h-4 w-4 mr-2 shrink-0" />
+          )}
+          <span className="text-slate-700 truncate">{seleccionada.label}</span>
+        </div>
+        <IconChevron className="h-4 w-4 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (
+        <ul className="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          {opciones.map((opt) => (
+            <li
+              key={opt.value || 'todos'}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center ${opt.value === value ? 'bg-blue-50' : ''}`}
+            >
+              {opt.img ? (
+                <img src={opt.img} alt="" className="h-4 w-4 mr-2 rounded-sm object-contain shrink-0" />
+              ) : (
+                <span className="inline-block h-4 w-4 mr-2 shrink-0" />
+              )}
+              <span className="text-sm text-slate-700">{opt.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 export const HistorialPage = () => {
   // Estados principales
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
-  
+
+  // Estado de filtros
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIALES);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+
+  // Estado de paginación
+  const [paginaActual, setPaginaActual] = useState(1);
+
   // Estados para selección de ventas y retiro masivo
   const [seleccionadas, setSeleccionadas] = useState<number[]>([]);
   const [procesandoMasivo, setProcesandoMasivo] = useState(false);
@@ -45,6 +240,7 @@ export const HistorialPage = () => {
   const [mensajeExito, setMensajeExito] = useState('');
   const [cargandoDolarEnVivo, setCargandoDolarEnVivo] = useState(false);
 
+  // Funciones para cargar ventas y manejar filtros
   const cargarVentas = async () => {
     setCargando(true);
     try {
@@ -60,6 +256,78 @@ export const HistorialPage = () => {
   };
 
   useEffect(() => { cargarVentas(); }, []);
+
+  // Filtros
+  const hayFiltrosActivos = useMemo(() => {
+    return Object.values(filtros).some((v) => v !== '');
+  }, [filtros]);
+
+  const actualizarFiltro = (campo: keyof Filtros, valor: string) => {
+    setFiltros((prev) => ({ ...prev, [campo]: valor }));
+    setPaginaActual(1); // Al filtrar, siempre se vuelve a la primera página
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros(FILTROS_INICIALES);
+    setPaginaActual(1);
+  };
+
+  // Filtrado de ventas según los filtros activos
+  const ventasFiltradas = useMemo(() => {
+    const busquedaNormalizada = filtros.busqueda.trim().toLowerCase();
+
+    return ventas.filter((v) => {
+      if (busquedaNormalizada) {
+        const coincideCliente = v.nombre_cliente.toLowerCase().includes(busquedaNormalizada);
+        const coincideEstilo = (v.nombre_estilo || '').toLowerCase().includes(busquedaNormalizada);
+        if (!coincideCliente && !coincideEstilo) return false;
+      }
+
+      if (filtros.plataforma && v.plataforma_origen !== filtros.plataforma) return false;
+      if (filtros.metodoPago && v.metodo_pago !== filtros.metodoPago) return false;
+      if (filtros.estado && v.estado_retiro !== filtros.estado) return false;
+
+      if (filtros.fechaDesde) {
+        const desde = new Date(filtros.fechaDesde);
+        if (new Date(v.fecha_venta) < desde) return false;
+      }
+      if (filtros.fechaHasta) {
+        const hasta = new Date(filtros.fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        if (new Date(v.fecha_venta) > hasta) return false;
+      }
+
+      return true;
+    });
+  }, [ventas, filtros]);
+
+  // Paginacion
+  const totalPaginas = Math.max(1, Math.ceil(ventasFiltradas.length / VENTAS_POR_PAGINA));
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) {
+      setPaginaActual(totalPaginas);
+    }
+  }, [totalPaginas, paginaActual]);
+
+  const ventasPaginadas = useMemo(() => {
+    const inicio = (paginaActual - 1) * VENTAS_POR_PAGINA;
+    return ventasFiltradas.slice(inicio, inicio + VENTAS_POR_PAGINA);
+  }, [ventasFiltradas, paginaActual]);
+
+  const irAPagina = (pagina: number) => {
+    const paginaValida = Math.min(Math.max(1, pagina), totalPaginas);
+    setPaginaActual(paginaValida);
+  };
+
+  const numerosDePagina = useMemo(() => {
+    const rango: number[] = [];
+    const inicio = Math.max(1, paginaActual - 2);
+    const fin = Math.min(totalPaginas, inicio + 4);
+    const inicioAjustado = Math.max(1, fin - 4);
+    for (let i = inicioAjustado; i <= fin; i++) rango.push(i);
+    return rango;
+  }, [paginaActual, totalPaginas]);
 
   const toggleSeleccion = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -169,77 +437,269 @@ export const HistorialPage = () => {
         </div>
       )}
 
+      {/* PANEL DE FILTROS */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 overflow-visible">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+          <div className="relative flex-1">
+            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por cliente o estilo..."
+              value={filtros.busqueda}
+              onChange={(e) => actualizarFiltro('busqueda', e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+            />
+          </div>
+
+          <button
+            onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
+              filtrosAbiertos || hayFiltrosActivos
+                ? 'bg-blue-50 border-blue-200 text-blue-700'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <IconFilter className="h-4 w-4" />
+            Filtros
+            {hayFiltrosActivos && (
+              <span className="flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-blue-600 text-white text-[11px] font-bold">
+                {Object.values(filtros).filter((v) => v !== '').length}
+              </span>
+            )}
+          </button>
+
+          {hayFiltrosActivos && (
+            <button
+              onClick={limpiarFiltros}
+              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <IconX className="h-4 w-4" />
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {filtrosAbiertos && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4 pb-4 pt-1 border-t border-slate-100">
+            <PlataformaFiltroDropdown
+              value={filtros.plataforma}
+              onChange={(v) => actualizarFiltro('plataforma', v)}
+            />
+
+            <MetodoPagoFiltroDropdown
+              value={filtros.metodoPago}
+              onChange={(v) => actualizarFiltro('metodoPago', v)}
+            />
+
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-slate-500 mb-1.5">Estado</label>
+              <select
+                value={filtros.estado}
+                onChange={(e) => actualizarFiltro('estado', e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="retirado">Retirado</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-slate-500 mb-1.5">Rango de fechas</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={filtros.fechaDesde}
+                  onChange={(e) => actualizarFiltro('fechaDesde', e.target.value)}
+                  className="w-full px-2 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-slate-300 text-xs">–</span>
+                <input
+                  type="date"
+                  value={filtros.fechaHasta}
+                  onChange={(e) => actualizarFiltro('fechaHasta', e.target.value)}
+                  className="w-full px-2 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {cargando ? (
           <div className="p-8 text-center text-slate-400">Cargando ventas...</div>
         ) : ventas.length === 0 ? (
           <div className="p-8 text-center text-slate-400">No tienes comisiones registradas.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-3 text-center w-12">Sel.</th>
-                  <th className="px-4 py-3 text-left">Cliente</th>
-                  <th className="px-4 py-3 text-left">Estilo</th>
-                  <th className="px-4 py-3 text-left">Plataforma</th>
-                  <th className="px-4 py-3 text-left">Fecha</th>
-                  <th className="px-4 py-3 text-right">Monto</th>
-                  <th className="px-4 py-3 text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {ventas.map((v) => {
-                  const esTransferenciaCLP = v.metodo_pago === 'Transferencia Bancaria';
-                  const estaRetirado = v.estado_retiro === 'retirado';
-                  
-                  return (
-                    <tr 
-                      key={v.id_venta} 
-                      onClick={() => abrirModalVenta(v.id_venta)}
-                      className={`cursor-pointer transition-colors ${seleccionadas.includes(v.id_venta) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
-                    >
-                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                        {!estaRetirado && !esTransferenciaCLP ? (
-                          <input 
-                            type="checkbox" 
-                            className="w-4 h-4 cursor-pointer text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                            checked={seleccionadas.includes(v.id_venta)}
-                            onChange={(e) => toggleSeleccion(v.id_venta, e as any)}
-                          />
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{v.nombre_cliente}</td>
-                      <td className="px-4 py-3 text-slate-600">{v.nombre_estilo || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">{v.plataforma_origen}</td>
-                      <td className="px-4 py-3 text-slate-600">{new Date(v.fecha_venta).toLocaleDateString('es-CL')}</td>
-                      
-                      <td className="px-4 py-3 text-right font-bold text-green-700">
-                        {esTransferenciaCLP
-                          ? `$${Number(v.total_final_clp).toLocaleString('es-CL')} CLP` 
-                          : `$${parseFloat(v.total_neto_usd).toFixed(2)} USD`
-                        }
-                      </td>
-                      
-                      <td className="px-4 py-3 text-center">
-                        {estaRetirado ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                            Retirado
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                            Pendiente
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        ) : ventasFiltradas.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-slate-400 text-sm mb-3">Ningún resultado coincide con los filtros aplicados.</p>
+            <button
+              onClick={limpiarFiltros}
+              className="text-blue-600 hover:text-blue-700 text-sm font-semibold cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
           </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-center w-12">Sel.</th>
+                    <th className="px-4 py-3 text-left">Cliente</th>
+                    <th className="px-4 py-3 text-left">Estilo</th>
+                    <th className="px-4 py-3 text-left">Plataforma</th>
+                    <th className="px-4 py-3 text-left">Fecha</th>
+                    <th className="px-4 py-3 text-right">Monto</th>
+                    <th className="px-4 py-3 text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ventasPaginadas.map((v) => {
+                    const esTransferenciaCLP = v.metodo_pago === 'Transferencia Bancaria';
+                    const estaRetirado = v.estado_retiro === 'retirado';
+                    const iconoPlataforma = getPlataformaIcon(v.plataforma_origen);
+                    
+                    return (
+                      <tr 
+                        key={v.id_venta} 
+                        onClick={() => abrirModalVenta(v.id_venta)}
+                        className={`cursor-pointer transition-colors ${seleccionadas.includes(v.id_venta) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
+                      >
+                        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {!estaRetirado && !esTransferenciaCLP ? (
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 cursor-pointer text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                              checked={seleccionadas.includes(v.id_venta)}
+                              onChange={(e) => toggleSeleccion(v.id_venta, e as any)}
+                            />
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-800">{v.nombre_cliente}</td>
+                        <td className="px-4 py-3 text-slate-600">{v.nombre_estilo || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <div className="flex items-center gap-2">
+                            {iconoPlataforma && (
+                              <img
+                                src={iconoPlataforma}
+                                alt=""
+                                className="h-4 w-4 rounded-sm object-contain shrink-0"
+                                style={v.plataforma_origen === 'Twitter / X' ? { transform: 'scale(1.8)' } : undefined}
+                              />
+                            )}
+                            <span>{v.plataforma_origen}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{new Date(v.fecha_venta).toLocaleDateString('es-CL')}</td>
+                        
+                        <td className="px-4 py-3 text-right font-bold text-green-700">
+                          {esTransferenciaCLP
+                            ? `$${Number(v.total_final_clp).toLocaleString('es-CL')} CLP` 
+                            : `$${parseFloat(v.total_neto_usd).toFixed(2)} USD`
+                          }
+                        </td>
+                        
+                        <td className="px-4 py-3 text-center">
+                          {estaRetirado ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                              Retirado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                              Pendiente
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Controles de paginación */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50/60">
+              <p className="text-xs text-slate-500 order-2 sm:order-1">
+                Mostrando{' '}
+                <span className="font-semibold text-slate-700">
+                  {(paginaActual - 1) * VENTAS_POR_PAGINA + 1}
+                  –
+                  {Math.min(paginaActual * VENTAS_POR_PAGINA, ventasFiltradas.length)}
+                </span>{' '}
+                de <span className="font-semibold text-slate-700">{ventasFiltradas.length}</span> ventas
+                {hayFiltrosActivos && (
+                  <span className="text-slate-400"> (de {ventas.length} en total)</span>
+                )}
+              </p>
+
+              <div className="flex items-center gap-1 order-1 sm:order-2">
+                <button
+                  onClick={() => irAPagina(paginaActual - 1)}
+                  disabled={paginaActual === 1}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  aria-label="Página anterior"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {numerosDePagina[0] > 1 && (
+                  <>
+                    <button
+                      onClick={() => irAPagina(1)}
+                      className="h-8 min-w-8 px-2 flex items-center justify-center rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      1
+                    </button>
+                    <span className="px-1 text-slate-300 select-none">…</span>
+                  </>
+                )}
+
+                {numerosDePagina.map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => irAPagina(num)}
+                    className={`h-8 min-w-8 px-2 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                      num === paginaActual
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+                {numerosDePagina[numerosDePagina.length - 1] < totalPaginas && (
+                  <>
+                    <span className="px-1 text-slate-300 select-none">…</span>
+                    <button
+                      onClick={() => irAPagina(totalPaginas)}
+                      className="h-8 min-w-8 px-2 flex items-center justify-center rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      {totalPaginas}
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={() => irAPagina(paginaActual + 1)}
+                  disabled={paginaActual === totalPaginas}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  aria-label="Página siguiente"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -346,6 +806,8 @@ export const HistorialPage = () => {
                 const esCLP = detalleVenta.metodo_pago === 'Transferencia Bancaria';
                 const divisa = esCLP ? 'CLP' : 'USD';
                 const tieneDobleBoleta = !esCLP && detalleVenta.estado_retiro === 'retirado';
+                const iconoPlataformaDetalle = getPlataformaIcon(detalleVenta.plataforma_origen);
+                const iconoMetodoDetalle = getMetodoIcon(detalleVenta.metodo_pago);
                 
                 const subtotalBruto = esCLP ? detalleVenta.total_final_clp : detalleVenta.total_bruto_usd;
                 const totalFinal = esCLP ? detalleVenta.total_final_clp : detalleVenta.total_neto_usd;
@@ -381,10 +843,27 @@ export const HistorialPage = () => {
                           <p className="text-xs text-slate-500">TICKET #: {String(detalleVenta.id_venta).padStart(5, '0')}</p>
                         </div>
                         <div className="border-t-2 border-dashed border-slate-300 mb-4"></div>
-                        <div className="mb-4 text-sm">
+                        <div className="mb-4 text-sm space-y-1.5">
                           <p><strong>CLIENTE:</strong> {detalleVenta.nombre_cliente}</p>
-                          <p><strong>ORIGEN:</strong> {detalleVenta.plataforma_origen}</p>
-                          <p><strong>PAGO:</strong> {detalleVenta.metodo_pago}</p>
+                          <p className="flex items-center gap-1.5">
+                            <strong>ORIGEN:</strong>
+                            {iconoPlataformaDetalle && (
+                              <img
+                                src={iconoPlataformaDetalle}
+                                alt=""
+                                className="h-3.5 w-3.5 object-contain inline-block"
+                                style={detalleVenta.plataforma_origen === 'Twitter / X' ? { transform: 'scale(1.8)' } : undefined}
+                              />
+                            )}
+                            {detalleVenta.plataforma_origen}
+                          </p>
+                          <p className="flex items-center gap-1.5">
+                            <strong>PAGO:</strong>
+                            {iconoMetodoDetalle && (
+                              <img src={iconoMetodoDetalle} alt="" className="h-3.5 w-3.5 object-contain inline-block" />
+                            )}
+                            {detalleVenta.metodo_pago}
+                          </p>
                         </div>
                         <div className="border-t-2 border-dashed border-slate-300 mb-4"></div>
                         <div className="space-y-2 text-sm mb-4">
@@ -424,8 +903,14 @@ export const HistorialPage = () => {
                           <p className="text-xs text-slate-500">REF TICKET #: {String(detalleVenta.id_venta).padStart(5, '0')}</p>
                         </div>
                         <div className="border-t-2 border-dashed border-slate-300 mb-4"></div>
-                        <div className="mb-4 text-sm">
-                          <p><strong>ORIGEN:</strong> {detalleVenta.metodo_pago}</p>
+                        <div className="mb-4 text-sm space-y-1.5">
+                          <p className="flex items-center gap-1.5">
+                            <strong>ORIGEN:</strong>
+                            {iconoMetodoDetalle && (
+                              <img src={iconoMetodoDetalle} alt="" className="h-3.5 w-3.5 object-contain inline-block" />
+                            )}
+                            {detalleVenta.metodo_pago}
+                          </p>
                           <p><strong>OPERACIÓN:</strong> Retiro Internacional</p>
                         </div>
                         <div className="border-t-2 border-dashed border-slate-300 mb-4"></div>
