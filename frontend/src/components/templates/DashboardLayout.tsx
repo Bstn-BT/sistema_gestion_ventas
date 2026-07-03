@@ -32,6 +32,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
         {/* Cabecera del Sidebar con ícono personalizado */}
         <div className="h-16 flex items-center px-6 border-b border-[#086455]/30 relative z-10 shadow-sm bg-[#1f1f2e]/40 backdrop-blur-sm">
+          
+          {/* Patrón animado de murciélagos en el header del sidebar */}
+          <div 
+            className="absolute inset-0 opacity-15 pointer-events-none mix-blend-luminosity" 
+            style={{ 
+              backgroundImage: 'url(https://64.media.tumblr.com/d65212d0050b2057686a31a3033377a4/9a5e59d4a20102aa-17/s75x75_c1/f537b0a0585d89556f1dfac7a609449e0dcd6813.gif)', 
+              backgroundSize: '75px 75px',
+              backgroundRepeat: 'repeat'
+            }} 
+          />
+
+          {/* Logo y nombre del sitio */}
           <div className="w-9 h-9 rounded-lg overflow-hidden shadow-lg shadow-[#0e8571]/30 mr-3 border border-[#0e8571]/40 flex-shrink-0">
             <img 
               src="/chuuyaicon.jpg" 
@@ -39,6 +51,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
             />
           </div>
+          
+          {/* Nombre del sitio con estilo personalizado */}
           <span className="text-xl font-bold tracking-wide drop-shadow-md">
             Art<span className="text-[#0e8571]">Commissions</span>
           </span>
@@ -72,7 +86,19 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         
         {/* Cabecera */}
-        <header className="h-16 bg-[#1f1f2e] border-b border-[#0e8571]/30 flex items-center justify-between px-8 z-10 sticky top-0 transition-all duration-300 shadow-[10px_0_40px_-20px_rgba(14,133,113,0.35)]">
+          <header className="h-16 bg-[#1f1f2e] border-b border-[#0e8571]/30 flex items-center justify-between px-8 z-10 sticky top-0 transition-all duration-300 shadow-[10px_0_40px_-20px_rgba(14,133,113,0.35)]">
+          
+          {/* Patrón animado de murciélagos en el header */}
+          <div 
+            className="absolute inset-0 opacity-15 pointer-events-none mix-blend-luminosity" 
+            style={{ 
+              backgroundImage: 'url(https://64.media.tumblr.com/d65212d0050b2057686a31a3033377a4/9a5e59d4a20102aa-17/s75x75_c1/f537b0a0585d89556f1dfac7a609449e0dcd6813.gif)', 
+              backgroundSize: '75px 75px',
+              backgroundRepeat: 'repeat'
+            }} 
+          />
+
+          {/* Barra de búsqueda y perfil de usuario */}
           <div className="flex items-center w-1/3 group">
             <div className="relative w-full transition-all duration-300 focus-within:w-[110%]">
               <input 
@@ -82,11 +108,15 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               />
             </div>
           </div>
+
+          {/* Perfil de usuario con imagen y nombre */}
           <div className="flex items-center space-x-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold text-[#E3E3E3]">Saturnalita</p>
               <p className="text-xs text-[#0e8571] font-medium">Administrador</p>
             </div>
+
+            {/* Imagen de perfil con borde y sombra */}
             <div className="w-9 h-9 rounded-lg overflow-hidden shadow-lg shadow-[#0e8571]/30 mr-3 border border-[#0e8571]/40 flex-shrink-0">
               <img 
                 src="/chuuyaicon.jpg" 
