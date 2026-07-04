@@ -15,28 +15,27 @@ function App() {
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#1e293b', // Fondo slate-800 elegante
-            color: '#f8fafc',      // Texto blanco
+            background: '#1e293b',
+            color: '#f8fafc',
             borderRadius: '12px',
             fontWeight: '600',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
           },
           success: {
             iconTheme: {
-              primary: '#22c55e', // Checkmark verde
+              primary: '#22c55e',
               secondary: '#fff',
             },
           },
           error: {
             iconTheme: {
-              primary: '#ef4444', // X roja
+              primary: '#ef4444',
               secondary: '#fff',
             },
           },
         }} 
       />
 
-      {/* Tu enrutador original intacto */}
       <BrowserRouter>
         <DashboardLayout>
           <Routes>
