@@ -285,6 +285,27 @@ export const obtenerVentaPorId = async (req: Request, res: Response) => {
     }
 };
 
+// Estadística: modificadores más solicitados en todas las comisiones
+export const obtenerModificadoresMasSolicitados = async (req: Request, res: Response) => {
+    try {
+        const result = await pool.query(`
+            SELECT m.nombre_modificador AS nombre, COUNT(*)::int AS cantidad
+            FROM DETALLE_MODIFICADOR dm
+            JOIN MODIFICADOR m ON dm.id_modificador = m.id_modificador
+            GROUP BY m.nombre_modificador
+            ORDER BY cantidad DESC
+        `);
+
+        res.status(200).json({ exito: true, modificadores: result.rows });
+    } catch (error) {
+        console.error('Error al obtener modificadores más solicitados:', error);
+        res.status(500).json({
+            exito: false,
+            mensaje: 'Error al obtener estadísticas de modificadores'
+        });
+    }
+};
+
 // Retiro Masivo
 export const retirarMasivo = async (req: Request, res: Response) => {
     const client = await pool.connect();

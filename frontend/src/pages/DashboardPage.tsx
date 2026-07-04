@@ -14,6 +14,11 @@ interface Venta {
   estado_retiro: 'pendiente' | 'retirado';
 }
 
+interface ModificadorStat {
+  nombre: string;
+  cantidad: number;
+}
+
 // Tooltip personalizado para el gráfico de barras
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -29,9 +34,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+const TOP_MODIFICADORES = 6;
+
 export const DashboardPage = () => {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
+
+  const [modificadoresStats, setModificadoresStats] = useState<ModificadorStat[]>([]);
+  const [cargandoModificadores, setCargandoModificadores] = useState(true);
+
+  // Alterna entre las dos vistas del gráfico de pastel
+  const [vistaPastel, setVistaPastel] = useState<'plataformas' | 'modificadores'>('plataformas');
 
   useEffect(() => {
     const cargarVentas = async () => {
@@ -48,6 +61,23 @@ export const DashboardPage = () => {
       }
     };
     cargarVentas();
+  }, []);
+
+  useEffect(() => {
+    const cargarModificadores = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/ventas/estadisticas/modificadores');
+        const data = await res.json();
+        if (data.exito) {
+          setModificadoresStats(data.modificadores);
+        }
+      } catch (error) {
+        console.error('Error cargando estadísticas de modificadores:', error);
+      } finally {
+        setCargandoModificadores(false);
+      }
+    };
+    cargarModificadores();
   }, []);
 
   // --- PROCESAMIENTO DE DATOS PARA EL DASHBOARD ---
@@ -101,8 +131,21 @@ export const DashboardPage = () => {
     return { clpGanado, usdPendiente, usdRetirado, datosPlataformas, datosMeses };
   }, [ventas]);
 
+  // Datos del gráfico de modificadores más solicitados (top 6 + "Otros")
+  const datosModificadores = useMemo(() => {
+    const ordenados = [...modificadoresStats].sort((a, b) => b.cantidad - a.cantidad);
+    const top = ordenados.slice(0, TOP_MODIFICADORES).map((m) => ({ name: m.nombre, value: m.cantidad }));
+    const restoSuma = ordenados.slice(TOP_MODIFICADORES).reduce((acc, m) => acc + m.cantidad, 0);
+    if (restoSuma > 0) top.push({ name: 'Otros', value: restoSuma });
+    return top;
+  }, [modificadoresStats]);
+
   // Paleta de la marca aplicada a ambos gráficos
-  const COLORES_PASTEL = ['#1B4361', '#AB273B', '#02112B', '#0e8571', '#76499C', '#096E2E'];
+  const COLORES_PASTEL = ['#1B4361', '#AB273B', '#0C2245', '#52171E'];
+
+  const alternarVistaPastel = () => {
+    setVistaPastel((prev) => (prev === 'plataformas' ? 'modificadores' : 'plataformas'));
+  };
 
   if (cargando) {
     return <div className="p-8 text-center text-slate-500">Cargando métricas...</div>;
@@ -137,9 +180,9 @@ export const DashboardPage = () => {
           <p className="text-xs text-slate-400 font-medium mt-2">PayPal</p>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#76499C' }}>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-l-4" style={{ borderLeftColor: '#52171E' }}>
           <p className="text-sm font-semibold text-slate-500 mb-1">USD Histórico Retirado</p>
-          <h3 className="text-3xl font-black" style={{ color: '#76499C' }}>
+          <h3 className="text-3xl font-black" style={{ color: '#52171E' }}>
             ${metricas.usdRetirado.toFixed(2)}
           </h3>
           <p className="text-xs text-slate-400 font-medium mt-2">Dinero procesado</p>
@@ -202,48 +245,107 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* GRÁFICO DE PASTEL: Distribución de plataformas */}
+        {/* GRÁFICO DE PASTEL ALTERNABLE: Plataformas ⇄ Modificadores */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Comisiones por Plataforma</h3>
-              <p className="text-xs text-slate-400 mt-1">Conteo de pedidos por plataforma con su color asociado</p>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {metricas.datosPlataformas.map((item, index) => (
-                <span key={item.name} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORES_PASTEL[index % COLORES_PASTEL.length] }} />
-                  {item.name}: {item.value}
-                </span>
-              ))}
-            </div>
+          <div className="flex items-center justify-between mb-1">
+            <button
+              onClick={alternarVistaPastel}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
+              aria-label="Ver gráfico anterior"
+            >
+              ←
+            </button>
+            <h3 className="text-base font-bold text-slate-800 text-center truncate px-2">
+              {vistaPastel === 'plataformas' ? 'Comisiones por Plataforma' : 'Modificadores Más Solicitados'}
+            </h3>
+            <button
+              onClick={alternarVistaPastel}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
+              aria-label="Ver siguiente gráfico"
+            >
+              →
+            </button>
           </div>
-          <div className="h-72 w-full">
-            {metricas.datosPlataformas.length > 0 ? (
+
+          {/* Indicadores de posición (puntos) */}
+          <div className="flex items-center justify-center gap-1.5 mb-5">
+            <button
+              onClick={() => setVistaPastel('plataformas')}
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                vistaPastel === 'plataformas' ? 'w-5 bg-blue-600' : 'w-1.5 bg-slate-300'
+              }`}
+              aria-label="Ver comisiones por plataforma"
+            />
+            <button
+              onClick={() => setVistaPastel('modificadores')}
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                vistaPastel === 'modificadores' ? 'w-5 bg-blue-600' : 'w-1.5 bg-slate-300'
+              }`}
+              aria-label="Ver modificadores más solicitados"
+            />
+          </div>
+
+          <div className="h-64 w-full">
+            {vistaPastel === 'plataformas' ? (
+              metricas.datosPlataformas.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={metricas.datosPlataformas}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={5}
+                      dataKey="value"
+                      animationDuration={600}
+                    >
+                      {metricas.datosPlataformas.map((_, index) => (
+                        <Cell key={`cell-plataforma-${index}`} fill={COLORES_PASTEL[index % COLORES_PASTEL.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                      itemStyle={{ fontWeight: 'bold' }}
+                    />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400 text-sm">No hay datos suficientes para graficar.</div>
+              )
+            ) : cargandoModificadores ? (
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm">Cargando modificadores...</div>
+            ) : datosModificadores.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={metricas.datosPlataformas}
+                    data={datosModificadores}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
                     outerRadius={90}
                     paddingAngle={5}
                     dataKey="value"
+                    animationDuration={600}
                   >
-                    {metricas.datosPlataformas.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORES_PASTEL[index % COLORES_PASTEL.length]} />
+                    {datosModificadores.map((_, index) => (
+                      <Cell key={`cell-modificador-${index}`} fill={COLORES_PASTEL[index % COLORES_PASTEL.length]} />
                     ))}
                   </Pie>
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                     itemStyle={{ fontWeight: 'bold' }}
+                    formatter={(value, name) => [`${value} veces`, name]}
                   />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm">No hay datos suficientes para graficar.</div>
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
+                <span className="text-3xl">🎨</span>
+                Aún no hay modificadores registrados.
+              </div>
             )}
           </div>
         </div>

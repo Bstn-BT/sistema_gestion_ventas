@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { obtenerVentas, registrarVenta, obtenerVentaPorId, marcarComoRetirada, retirarMasivo } from '../controllers/venta.controller';
+import { obtenerVentas, registrarVenta, obtenerVentaPorId, marcarComoRetirada, retirarMasivo, obtenerModificadoresMasSolicitados } from '../controllers/venta.controller';
 
 const router = Router();
 
@@ -8,6 +8,7 @@ router.get('/', obtenerVentas);
 router.get('/:id', obtenerVentaPorId);
 router.patch('/:id/retirar', marcarComoRetirada);
 router.post('/retirar-masivo', retirarMasivo);
+router.get('/estadisticas/modificadores', obtenerModificadoresMasSolicitados);
 
 
 export default router;
