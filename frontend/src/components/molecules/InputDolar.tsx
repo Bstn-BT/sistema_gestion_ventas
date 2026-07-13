@@ -29,7 +29,7 @@ export const InputDolar = ({ onValorChange }: { onValorChange: (value: number) =
 
   return (
     <div className="flex flex-col mb-4 w-full max-w-sm">
-      <Label htmlFor="dolar_paypal" texto="Valor Dólar a CLP (PayPal -3.5%)" />
+      <Label htmlFor="dolar_paypal" texto="Valor Dólar a CLP" />
       <Input 
         id="dolar_paypal"
         type="number" 

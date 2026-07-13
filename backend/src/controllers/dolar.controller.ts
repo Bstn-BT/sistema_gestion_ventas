@@ -9,15 +9,12 @@ export const obtenerDolarPayPal = async (req: Request, res: Response) => {
         // Extrae el valor oficial del dólar desde la respuesta de la API
         const valorOficial = data.serie[0].valor;
 
-        // Calcula el descuento aplicado por PayPal (3.5% de spread)
-        const spreadPayPal = 0.035;
-        const valorPayPal = valorOficial * (1 - spreadPayPal);
-
+        // No se aplica ningún porcentaje: se usa el valor oficial como referencia.
         // Devuelve la respuesta con el valor oficial y el valor estimado de PayPal
         res.json({
             exito: true,
             oficial: valorOficial,
-            paypal_estimado: parseFloat(valorPayPal.toFixed(2)), // Redondeado a 2 decimales
+            paypal_estimado: parseFloat(valorOficial.toFixed(2)), // Sin descuento porcentual automático
             fecha: data.serie[0].fecha
         });
     } catch (error) {

@@ -17,8 +17,27 @@ export const pool = new Pool({
 export const connectDB = async () => {
     try {
         const client = await pool.connect();
-        console.log('Base de datos conectada exitosamente');
-        client.release();
+        try {
+            await client.query(`
+                ALTER TABLE VENTA
+                ADD COLUMN IF NOT EXISTS comision_vgen_usd NUMERIC(12, 2) NOT NULL DEFAULT 0
+            `);
+            await client.query(`
+                ALTER TABLE VENTA
+                ADD COLUMN IF NOT EXISTS comision_recepcion_paypal_usd NUMERIC(12, 2) NOT NULL DEFAULT 0
+            `);
+            await client.query(`
+                UPDATE VENTA
+                SET comision_vgen_usd = comision_plataforma_usd
+                WHERE plataforma_origen = 'VGen'
+                  AND comision_plataforma_usd > 0
+                  AND comision_vgen_usd = 0
+                  AND comision_recepcion_paypal_usd = 0
+            `);
+            console.log('Base de datos conectada y esquema financiero actualizado');
+        } finally {
+            client.release();
+        }
     } catch (error) {
         console.error('Error al conectar con la base de datos:', error);
         process.exit(1);

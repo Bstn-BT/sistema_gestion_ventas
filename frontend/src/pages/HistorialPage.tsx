@@ -9,6 +9,8 @@ interface Venta {
   fecha_venta: string;
   total_bruto_usd: string;
   comision_plataforma_usd: string;
+  comision_vgen_usd?: string;
+  comision_recepcion_paypal_usd?: string;
   comision_retiro_usd: string;
   total_neto_usd: string;
   total_final_clp: string;
@@ -372,7 +374,10 @@ export const HistorialPage = () => {
       const res = await fetch('http://localhost:3000/api/ventas/retirar-masivo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: seleccionadas, valor_dolar: valorDolar }),
+        body: JSON.stringify({
+          ids: seleccionadas,
+          valor_dolar: valorDolar,
+        }),
       });
       const data = await res.json();
 
@@ -708,7 +713,7 @@ export const HistorialPage = () => {
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100">
             <h3 className="text-xl font-bold text-slate-800 mb-1">Retiro Bancario</h3>
             <p className="text-sm text-slate-500 mb-6 font-medium">
-              Vas a retirar <strong className="text-blue-600">{seleccionadas.length} comisiones</strong>. Se calculará el 3.5% y se distribuirán los $800 CLP fijos.
+              Vas a retirar <strong className="text-blue-600">{seleccionadas.length} comisiones</strong>. Se convertirán a CLP usando el valor del dólar y se descontarán $800 CLP por todo el bloque.
             </p>
 
             <div className="mb-6">
@@ -810,7 +815,14 @@ export const HistorialPage = () => {
                 const iconoMetodoDetalle = getMetodoIcon(detalleVenta.metodo_pago);
                 
                 const subtotalBruto = esCLP ? detalleVenta.total_final_clp : detalleVenta.total_bruto_usd;
-                const totalFinal = esCLP ? detalleVenta.total_final_clp : detalleVenta.total_neto_usd;
+                const totalFinal = esCLP
+                  ? detalleVenta.total_final_clp
+                  : Number(detalleVenta.total_bruto_usd) - Number(detalleVenta.comision_plataforma_usd);
+                const comisionVGenDetalle = Number(
+                  detalleVenta.comision_vgen_usd
+                    ?? (detalleVenta.plataforma_origen === 'VGen' ? detalleVenta.comision_plataforma_usd : 0)
+                );
+                const comisionRecepcionPayPalDetalle = Number(detalleVenta.comision_recepcion_paypal_usd ?? 0);
 
                 return (
                   <>
@@ -878,9 +890,23 @@ export const HistorialPage = () => {
                         </div>
                         {!esCLP && (
                           <div className="space-y-1 text-sm mt-4 mb-4 text-slate-600">
-                            {parseFloat(detalleVenta.comision_plataforma_usd) > 0 && (
-                              <div className="flex justify-between"><span>Tarifa {detalleVenta.plataforma_origen}</span><span>-${formatearDinero(detalleVenta.comision_plataforma_usd, esCLP)}</span></div>
-                            )}
+                            {detalleVenta.plataforma_origen === 'VGen' ? (
+                              <>
+                                <div className="flex justify-between">
+                                  <span>Comisión VGen</span>
+                                  <span>-${formatearDinero(comisionVGenDetalle, false)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Comisión al recibir en PayPal</span>
+                                  <span>-${formatearDinero(comisionRecepcionPayPalDetalle, false)}</span>
+                                </div>
+                              </>
+                            ) : parseFloat(detalleVenta.comision_plataforma_usd) > 0 ? (
+                              <div className="flex justify-between">
+                                <span>Tarifa {detalleVenta.plataforma_origen}</span>
+                                <span>-${formatearDinero(detalleVenta.comision_plataforma_usd, false)}</span>
+                              </div>
+                            ) : null}
                           </div>
                         )}
                         <div className="border-t-2 border-dashed border-slate-300 mb-4 mt-4"></div>
@@ -916,13 +942,11 @@ export const HistorialPage = () => {
                         <div className="border-t-2 border-dashed border-slate-300 mb-4"></div>
                         <div className="space-y-2 text-sm mb-4">
                           <div className="flex justify-between font-bold"><span>CONCEPTO</span><span>MONTO</span></div>
-                          <div className="flex justify-between"><span>Fondo Comercial</span><span>${parseFloat(detalleVenta.total_neto_usd).toFixed(2)} USD</span></div>
+                          <div className="flex justify-between"><span>Saldo recibido en {detalleVenta.metodo_pago}</span><span>${Number(totalFinal).toFixed(2)} USD</span></div>
                         </div>
                         <div className="space-y-1 text-sm mt-4 mb-4 text-slate-600">
-                          {parseFloat(detalleVenta.comision_retiro_usd) > 0 && (
-                            <div className="flex justify-between"><span>Tarifa {detalleVenta.metodo_pago} (3.5%)</span><span>-${parseFloat(detalleVenta.comision_retiro_usd).toFixed(2)} USD</span></div>
-                          )}
-                          <div className="text-xs mt-2 italic text-slate-400">* El tipo de cambio y los $800 fijos de PayPal se aplicaron en el bloque acumulado.</div>
+                          <div className="flex justify-between"><span>Costo fijo PayPal</span><span>$800 CLP por bloque</span></div>
+                          <div className="text-xs mt-2 italic text-slate-400">* El monto USD se convirtió usando el valor del dólar ingresado al retirar. Los $800 CLP se distribuyeron entre las comisiones del bloque.</div>
                         </div>
                         <div className="border-t-2 border-dashed border-slate-300 mb-4 mt-4"></div>
                         <div className="flex justify-between items-center mb-6">

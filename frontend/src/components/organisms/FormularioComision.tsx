@@ -3,15 +3,6 @@ import { SelectEstilo } from '../molecules/SelectEstilo';
 import { ListaModificadores } from '../molecules/ListaModificadores';
 import toast from 'react-hot-toast';
 
-const COMISIONES_PLATAFORMA: Record<string, number> = {
-  'VGen': 0.05,
-  'TikTok': 0,
-  'Twitter / X': 0,
-  'Discord': 0,
-  'Instagram': 0,
-  'Facebook': 0,
-};
-
 // Dropdown para plataformas usando imágenes desde public/
 const PlatformDropdown = ({ plataforma, setPlataforma }: { plataforma: string; setPlataforma: (v: string) => void }) => {
   const [open, setOpen] = useState(false);
@@ -127,6 +118,8 @@ export const FormularioComision = () => {
   const [plataforma, setPlataforma] = useState('VGen');
   const [metodoPago, setMetodoPago] = useState('PayPal');
   const [precioBase, setPrecioBase] = useState('');
+  const [comisionVGen, setComisionVGen] = useState('');
+  const [comisionRecepcionPayPal, setComisionRecepcionPayPal] = useState('');
   const [cargando, setCargando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
@@ -134,6 +127,7 @@ export const FormularioComision = () => {
   const [mensajeExito, setMensajeExito] = useState('');
 
   const esTransferenciaCLP = metodoPago === 'Transferencia Bancaria';
+  const esVentaVGenPayPal = plataforma === 'VGen' && metodoPago === 'PayPal';
   const divisa = esTransferenciaCLP ? 'CLP' : 'USD';
 
   const resumen = useMemo(() => {
@@ -141,11 +135,13 @@ export const FormularioComision = () => {
     const sumaModificadores = modificadores.reduce((acc, mod) => acc + (parseFloat(mod.precio) || 0), 0);
     const bruto = base + sumaModificadores;
     
-    const comisionPlataforma = esTransferenciaCLP ? 0 : parseFloat((bruto * (COMISIONES_PLATAFORMA[plataforma] ?? 0)).toFixed(2));
-    const neto = esTransferenciaCLP ? bruto : parseFloat((bruto - comisionPlataforma).toFixed(2));
+    const tarifaVGen = esVentaVGenPayPal ? (parseFloat(comisionVGen) || 0) : 0;
+    const tarifaRecepcionPayPal = esVentaVGenPayPal ? (parseFloat(comisionRecepcionPayPal) || 0) : 0;
+    const totalComisiones = tarifaVGen + tarifaRecepcionPayPal;
+    const neto = esTransferenciaCLP ? bruto : parseFloat((bruto - totalComisiones).toFixed(2));
     
-    return { base, sumaModificadores, bruto, comisionPlataforma, neto };
-  }, [precioBase, modificadores, plataforma, esTransferenciaCLP]);
+    return { base, sumaModificadores, bruto, tarifaVGen, tarifaRecepcionPayPal, totalComisiones, neto };
+  }, [precioBase, modificadores, comisionVGen, comisionRecepcionPayPal, esTransferenciaCLP, esVentaVGenPayPal]);
 
   const formatearDinero = (monto: number) => {
     return esTransferenciaCLP ? monto.toLocaleString('es-CL') : monto.toFixed(2);
@@ -166,6 +162,21 @@ export const FormularioComision = () => {
       nuevosErrores.precioBase = 'Ingresa el precio base del estilo.';
     } else if (resumen.bruto <= 0) {
       nuevosErrores.precioBase = 'El monto total debe ser mayor a 0.';
+    }
+
+    if (esVentaVGenPayPal) {
+      const tarifaVGen = Number(comisionVGen || 0);
+      const tarifaPayPal = Number(comisionRecepcionPayPal || 0);
+
+      if (comisionVGen.trim() === '' || !Number.isFinite(tarifaVGen) || tarifaVGen < 0) {
+        nuevosErrores.comisionVGen = 'Ingresa una comisión válida (puede ser 0).';
+      }
+      if (comisionRecepcionPayPal.trim() === '' || !Number.isFinite(tarifaPayPal) || tarifaPayPal < 0) {
+        nuevosErrores.comisionRecepcionPayPal = 'Ingresa una comisión válida (puede ser 0).';
+      }
+      if (Number.isFinite(tarifaVGen) && Number.isFinite(tarifaPayPal) && tarifaVGen + tarifaPayPal > resumen.bruto) {
+        nuevosErrores.comisionRecepcionPayPal = 'Las comisiones no pueden superar el total bruto.';
+      }
     }
 
     setErrores(nuevosErrores);
@@ -194,6 +205,8 @@ export const FormularioComision = () => {
       id_estilo: idEstilo,
       modificadores: modificadores,
       total_bruto_usd: resumen.bruto,
+      comision_vgen_usd: resumen.tarifaVGen,
+      comision_recepcion_paypal_usd: resumen.tarifaRecepcionPayPal,
       precio_base: resumen.base,
     };
 
@@ -310,9 +323,65 @@ export const FormularioComision = () => {
         )}
       </div>
 
+      {esVentaVGenPayPal && (
+        <div className="mt-4 max-w-xl">
+          <p className="text-sm font-semibold text-gray-700 mb-2">Comisiones de recepción (USD)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col" data-error={!!errores.comisionVGen}>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Comisión VGen</label>
+              <div className="relative rounded-lg">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold text-sm text-slate-400">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={comisionVGen}
+                  onChange={(e) => {
+                    setComisionVGen(e.target.value);
+                    if (errores.comisionVGen) setErrores({ ...errores, comisionVGen: '' });
+                  }}
+                  className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 font-semibold transition-colors ${
+                    errores.comisionVGen
+                      ? 'border-red-500 focus:ring-red-400 bg-red-50 text-red-900'
+                      : 'border-slate-300 focus:ring-blue-500 bg-white text-slate-800'
+                  }`}
+                />
+              </div>
+              {errores.comisionVGen && <span className="text-red-500 text-xs mt-1.5 font-medium">▲ {errores.comisionVGen}</span>}
+            </div>
+
+            <div className="flex flex-col" data-error={!!errores.comisionRecepcionPayPal}>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Comisión al recibir en PayPal</label>
+              <div className="relative rounded-lg">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold text-sm text-slate-400">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={comisionRecepcionPayPal}
+                  onChange={(e) => {
+                    setComisionRecepcionPayPal(e.target.value);
+                    if (errores.comisionRecepcionPayPal) setErrores({ ...errores, comisionRecepcionPayPal: '' });
+                  }}
+                  className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 font-semibold transition-colors ${
+                    errores.comisionRecepcionPayPal
+                      ? 'border-red-500 focus:ring-red-400 bg-red-50 text-red-900'
+                      : 'border-slate-300 focus:ring-blue-500 bg-white text-slate-800'
+                  }`}
+                />
+              </div>
+              {errores.comisionRecepcionPayPal && <span className="text-red-500 text-xs mt-1.5 font-medium">▲ {errores.comisionRecepcionPayPal}</span>}
+            </div>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">Ingresa los montos reales descontados. Si no hubo algún cobro, ingresa 0.</p>
+        </div>
+      )}
+
       {resumen.bruto > 0 && (
         <div className="mt-4 max-w-sm bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-sm">
-          <p className="font-semibold text-slate-700 mb-3">Desglose automático</p>
+          <p className="font-semibold text-slate-700 mb-3">Resumen del registro</p>
 
           <div className="flex justify-between text-slate-600">
             <span>Precio Base</span>
@@ -331,15 +400,22 @@ export const FormularioComision = () => {
             <span>${formatearDinero(resumen.bruto)}</span>
           </div>
 
-          {resumen.comisionPlataforma > 0 && !esTransferenciaCLP && (
+          {resumen.tarifaVGen > 0 && esVentaVGenPayPal && (
             <div className="flex justify-between text-red-500">
-              <span>Comisión {plataforma} ({(COMISIONES_PLATAFORMA[plataforma] * 100).toFixed(0)}%)</span>
-              <span>- ${formatearDinero(resumen.comisionPlataforma)}</span>
+              <span>Comisión VGen</span>
+              <span>- ${formatearDinero(resumen.tarifaVGen)}</span>
+            </div>
+          )}
+
+          {resumen.tarifaRecepcionPayPal > 0 && esVentaVGenPayPal && (
+            <div className="flex justify-between text-red-500">
+              <span>Comisión al recibir en PayPal</span>
+              <span>- ${formatearDinero(resumen.tarifaRecepcionPayPal)}</span>
             </div>
           )}
 
           <div className="border-t border-slate-200 pt-2 flex justify-between text-green-700 font-bold">
-            <span>{esTransferenciaCLP ? 'Ingreso a cuenta' : 'Neto estimado (sin retirar)'}</span>
+            <span>{esTransferenciaCLP ? 'Ingreso a cuenta' : `Saldo recibido en ${metodoPago}`}</span>
             <span>${formatearDinero(resumen.neto)}</span>
           </div>
         </div>

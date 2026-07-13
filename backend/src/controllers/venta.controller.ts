@@ -1,22 +1,6 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
 
-// Comisiones por plataforma (porcentaje como decimal) - se aplica al momento de la venta
-const COMISIONES_PLATAFORMA: Record<string, number> = {
-    'VGen': 0.05,
-    'TikTok': 0,
-    'Twitter / X': 0,
-    'Discord': 0,
-    'Instagram': 0,
-    'Facebook': 0,
-};
-
-// Comisiones de retiro por método de pago (porcentaje como decimal) - se aplica solo al retirar
-const COMISIONES_RETIRO: Record<string, number> = {
-    'PayPal': 0.035,
-    'Transferencia Bancaria': 0,
-};
-
 export const registrarVenta = async (req: Request, res: Response) => {
     const client = await pool.connect();
 
@@ -29,6 +13,8 @@ export const registrarVenta = async (req: Request, res: Response) => {
             id_estilo,
             modificadores,
             total_bruto_usd,
+            comision_vgen_usd: comisionVGenIngresada,
+            comision_recepcion_paypal_usd: comisionRecepcionPayPalIngresada,
         } = req.body;
 
         // Validaciones
@@ -47,11 +33,37 @@ export const registrarVenta = async (req: Request, res: Response) => {
             });
         }
 
-        const porcentajePlataforma = COMISIONES_PLATAFORMA[plataforma_origen] ?? 0;
+        const aplicaComisionesVGen = plataforma_origen === 'VGen' && metodo_pago === 'PayPal';
+
+        if (aplicaComisionesVGen && (comisionVGenIngresada === undefined || comisionRecepcionPayPalIngresada === undefined)) {
+            return res.status(400).json({
+                exito: false,
+                mensaje: 'Debes ingresar manualmente las comisiones de VGen y recepción en PayPal'
+            });
+        }
+
+        const tarifaVGen = aplicaComisionesVGen ? Number(comisionVGenIngresada ?? 0) : 0;
+        const tarifaRecepcionPayPal = aplicaComisionesVGen ? Number(comisionRecepcionPayPalIngresada ?? 0) : 0;
+        const tarifaPlataforma = tarifaVGen + tarifaRecepcionPayPal;
+
+        if (!Number.isFinite(tarifaVGen) || tarifaVGen < 0 || !Number.isFinite(tarifaRecepcionPayPal) || tarifaRecepcionPayPal < 0) {
+            return res.status(400).json({
+                exito: false,
+                mensaje: 'Las comisiones de VGen y PayPal deben ser montos válidos'
+            });
+        }
+        if (tarifaPlataforma > bruto) {
+            return res.status(400).json({
+                exito: false,
+                mensaje: 'Las comisiones de VGen y PayPal no pueden superar el total bruto'
+            });
+        }
         
         // --- LÓGICA DE MONEDAS Y ESTADOS ---
         let bruto_usd = bruto;
-        let comision_plataforma_usd = parseFloat((bruto * porcentajePlataforma).toFixed(2));
+        let comision_vgen_usd = parseFloat(tarifaVGen.toFixed(2));
+        let comision_recepcion_paypal_usd = parseFloat(tarifaRecepcionPayPal.toFixed(2));
+        let comision_plataforma_usd = parseFloat((comision_vgen_usd + comision_recepcion_paypal_usd).toFixed(2));
         let neto_usd = parseFloat((bruto - comision_plataforma_usd).toFixed(2));
         let final_clp = 0; 
         
@@ -65,7 +77,9 @@ export const registrarVenta = async (req: Request, res: Response) => {
             final_clp = bruto; 
             bruto_usd = 0;
             neto_usd = 0;
-            comision_plataforma_usd = 0; 
+            comision_plataforma_usd = 0;
+            comision_vgen_usd = 0;
+            comision_recepcion_paypal_usd = 0;
         }
 
         await client.query('BEGIN');
@@ -79,13 +93,15 @@ export const registrarVenta = async (req: Request, res: Response) => {
                 fecha_venta,
                 total_bruto_usd,
                 comision_plataforma_usd,
+                comision_vgen_usd,
+                comision_recepcion_paypal_usd,
                 comision_retiro_usd,
                 total_neto_usd,
                 total_final_clp,
                 estado_retiro,
                 fecha_retiro
             )
-            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, 0, $7, $8, $9, ${estado_retiro === 'retirado' ? 'CURRENT_DATE' : 'NULL'})
+            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, $7, $8, 0, $9, $10, $11, ${estado_retiro === 'retirado' ? 'CURRENT_DATE' : 'NULL'})
             RETURNING id_venta;
         `;
 
@@ -96,6 +112,8 @@ export const registrarVenta = async (req: Request, res: Response) => {
             metodo_pago === 'Transferencia Bancaria' ? 'CLP' : (moneda_origen || 'USD'),
             bruto_usd,
             comision_plataforma_usd,
+            comision_vgen_usd,
+            comision_recepcion_paypal_usd,
             neto_usd,
             final_clp,
             estado_retiro
@@ -134,6 +152,8 @@ export const registrarVenta = async (req: Request, res: Response) => {
             resumen: {
                 total_bruto_usd: bruto_usd,
                 comision_plataforma_usd,
+                comision_vgen_usd,
+                comision_recepcion_paypal_usd,
                 total_neto_usd: neto_usd,
                 total_final_clp: final_clp,
                 estado_retiro
@@ -174,15 +194,13 @@ export const marcarComoRetirada = async (req: Request, res: Response) => {
         }
 
         const bruto = parseFloat(venta.total_bruto_usd);
-        const porcentajeRetiro = COMISIONES_RETIRO[venta.metodo_pago] ?? 0;
-        const comision_retiro_usd = parseFloat((bruto * porcentajeRetiro).toFixed(2));
-
         const ventaCompleta = await client.query(
             'SELECT comision_plataforma_usd FROM VENTA WHERE id_venta = $1',
             [id]
         );
         const comisionPlataforma = parseFloat(ventaCompleta.rows[0].comision_plataforma_usd);
-        const total_neto_usd = parseFloat((bruto - comisionPlataforma - comision_retiro_usd).toFixed(2));
+        const comision_retiro_usd = 0;
+        const total_neto_usd = parseFloat((bruto - comisionPlataforma).toFixed(2));
 
         await client.query(
             `UPDATE VENTA 
@@ -222,6 +240,8 @@ export const obtenerVentas = async (req: Request, res: Response) => {
                 v.fecha_venta,
                 v.total_bruto_usd,
                 v.comision_plataforma_usd,
+                v.comision_vgen_usd,
+                v.comision_recepcion_paypal_usd,
                 v.comision_retiro_usd,
                 v.total_neto_usd,
                 v.total_final_clp,
@@ -313,8 +333,13 @@ export const retirarMasivo = async (req: Request, res: Response) => {
     try {
         const { ids, valor_dolar } = req.body;
 
-        if (!ids || ids.length === 0 || !valor_dolar) {
+        if (!Array.isArray(ids) || ids.length === 0 || !valor_dolar) {
             return res.status(400).json({ exito: false, mensaje: 'Faltan datos para el retiro masivo' });
+        }
+
+        const valorDolar = Number(valor_dolar);
+        if (!Number.isFinite(valorDolar) || valorDolar <= 0) {
+            return res.status(400).json({ exito: false, mensaje: 'El valor del dólar debe ser mayor a 0' });
         }
 
         await client.query('BEGIN');
@@ -329,25 +354,28 @@ export const retirarMasivo = async (req: Request, res: Response) => {
             return res.status(400).json({ exito: false, mensaje: 'No hay ventas válidas para retirar' });
         }
 
-        // Define las reglas de negocio de PayPal
-        const PORCENTAJE_PAYPAL = 0.035; // 3.5%
         const TARIFA_FIJA_CLP = 800;     // $800 pesos por TODO el bloque
-        
+
+        const saldosDisponibles = ventas.map((venta) => (
+            parseFloat(venta.total_bruto_usd) - parseFloat(venta.comision_plataforma_usd)
+        ));
+        const totalDisponible = saldosDisponibles.reduce((total, saldo) => total + saldo, 0);
+
+        if (!Number.isFinite(totalDisponible) || totalDisponible <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ exito: false, mensaje: 'Las ventas seleccionadas no tienen saldo disponible' });
+        }
+
         // Divide los $800 equitativamente entre las comisiones que estamos retirando
         const tarifaFijaPorVentaCLP = TARIFA_FIJA_CLP / ventas.length;
 
-        for (const venta of ventas) {
-            const brutoUSD = parseFloat(venta.total_bruto_usd);
-            const comisionPlataformaUSD = parseFloat(venta.comision_plataforma_usd);
-            
-            // Calcula el 3.5% de PayPal
-            const comisionRetiroUSD = parseFloat((brutoUSD * PORCENTAJE_PAYPAL).toFixed(2));
-            
-            // Calcula cuánto USD real nos queda para convertir a CLP
-            const netoUSDFinal = brutoUSD - comisionPlataformaUSD - comisionRetiroUSD;
+        for (let index = 0; index < ventas.length; index++) {
+            const venta = ventas[index];
+            const saldoDisponible = saldosDisponibles[index];
+            const netoUSDFinal = parseFloat(saldoDisponible.toFixed(2));
             
             // Convierte a CLP y le restamos su "cuota" de los $800 pesos
-            const clpConvertido = netoUSDFinal * parseFloat(valor_dolar);
+            const clpConvertido = netoUSDFinal * valorDolar;
             const totalFinalCLP = Math.max(0, Math.round(clpConvertido - tarifaFijaPorVentaCLP));
 
             // Actualiza la base de datos
@@ -359,11 +387,14 @@ export const retirarMasivo = async (req: Request, res: Response) => {
                     estado_retiro = 'retirado',
                     fecha_retiro = CURRENT_DATE
                 WHERE id_venta = $4
-            `, [comisionRetiroUSD, netoUSDFinal, totalFinalCLP, venta.id_venta]);
+            `, [0, netoUSDFinal, totalFinalCLP, venta.id_venta]);
         }
 
         await client.query('COMMIT');
-        res.status(200).json({ exito: true, mensaje: `¡Se retiraron ${ventas.length} ventas cobrando solo $800 CLP en total!` });
+        res.status(200).json({
+            exito: true,
+            mensaje: `¡Se retiraron ${ventas.length} ventas usando el valor del dólar y descontando $800 CLP por el bloque!`
+        });
 
     } catch (error) {
         await client.query('ROLLBACK');
