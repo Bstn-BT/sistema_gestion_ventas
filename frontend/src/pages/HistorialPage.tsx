@@ -11,6 +11,10 @@ interface Venta {
   comision_plataforma_usd: string;
   comision_vgen_usd?: string;
   comision_recepcion_paypal_usd?: string;
+  steam_app_id?: string | null;
+  steam_game_name?: string | null;
+  steam_game_image?: string | null;
+  steam_game_price_clp?: string | null;
   comision_retiro_usd: string;
   total_neto_usd: string;
   total_final_clp: string;
@@ -56,6 +60,7 @@ const PLATAFORMAS = [
 const METODOS_PAGO = [
   { label: 'PayPal', value: 'PayPal', img: '/PayPal.png' },
   { label: 'Transferencia Bancaria', value: 'Transferencia Bancaria', img: '/transferencia.png' },
+  { label: 'Juego de Steam', value: 'Juego de Steam', img: '/steam.svg' },
 ];
 
 const getPlataformaIcon = (nombre: string) => PLATAFORMAS.find((p) => p.value === nombre)?.img;
@@ -282,7 +287,8 @@ export const HistorialPage = () => {
       if (busquedaNormalizada) {
         const coincideCliente = v.nombre_cliente.toLowerCase().includes(busquedaNormalizada);
         const coincideEstilo = (v.nombre_estilo || '').toLowerCase().includes(busquedaNormalizada);
-        if (!coincideCliente && !coincideEstilo) return false;
+        const coincideJuego = (v.steam_game_name || '').toLowerCase().includes(busquedaNormalizada);
+        if (!coincideCliente && !coincideEstilo && !coincideJuego) return false;
       }
 
       if (filtros.plataforma && v.plataforma_origen !== filtros.plataforma) return false;
@@ -564,6 +570,7 @@ export const HistorialPage = () => {
                 <tbody className="divide-y divide-slate-100">
                   {ventasPaginadas.map((v) => {
                     const esTransferenciaCLP = v.metodo_pago === 'Transferencia Bancaria';
+                    const esSteam = v.metodo_pago === 'Juego de Steam';
                     const estaRetirado = v.estado_retiro === 'retirado';
                     const iconoPlataforma = getPlataformaIcon(v.plataforma_origen);
                     
@@ -574,7 +581,7 @@ export const HistorialPage = () => {
                         className={`cursor-pointer transition-colors ${seleccionadas.includes(v.id_venta) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
                       >
                         <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          {!estaRetirado && !esTransferenciaCLP ? (
+                          {!estaRetirado && !esTransferenciaCLP && !esSteam ? (
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 cursor-pointer text-blue-600 rounded border-gray-300 focus:ring-blue-500"
@@ -603,14 +610,20 @@ export const HistorialPage = () => {
                         <td className="px-4 py-3 text-slate-600">{new Date(v.fecha_venta).toLocaleDateString('es-CL')}</td>
                         
                         <td className="px-4 py-3 text-right font-bold text-green-700">
-                          {esTransferenciaCLP
+                          {esSteam
+                            ? <span className="inline-flex items-center justify-end gap-2 text-slate-700"><img src="/steam.svg" alt="" className="h-4 w-4" />{v.steam_game_name || 'Juego de Steam'}</span>
+                            : esTransferenciaCLP
                             ? `$${Number(v.total_final_clp).toLocaleString('es-CL')} CLP` 
                             : `$${parseFloat(v.total_neto_usd).toFixed(2)} USD`
                           }
                         </td>
                         
                         <td className="px-4 py-3 text-center">
-                          {estaRetirado ? (
+                          {esSteam ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                              Recibido
+                            </span>
+                          ) : estaRetirado ? (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                               Retirado
                             </span>
@@ -809,8 +822,9 @@ export const HistorialPage = () => {
             ) : detalleVenta ? (
               (() => {
                 const esCLP = detalleVenta.metodo_pago === 'Transferencia Bancaria';
-                const divisa = esCLP ? 'CLP' : 'USD';
-                const tieneDobleBoleta = !esCLP && detalleVenta.estado_retiro === 'retirado';
+                const esSteam = detalleVenta.metodo_pago === 'Juego de Steam';
+                const divisa = esSteam ? 'STEAM' : (esCLP ? 'CLP' : 'USD');
+                const tieneDobleBoleta = !esCLP && !esSteam && detalleVenta.estado_retiro === 'retirado';
                 const iconoPlataformaDetalle = getPlataformaIcon(detalleVenta.plataforma_origen);
                 const iconoMetodoDetalle = getMetodoIcon(detalleVenta.metodo_pago);
                 
@@ -850,7 +864,7 @@ export const HistorialPage = () => {
                       <div className={`w-full bg-[#fafafa] relative font-mono text-slate-800 p-8 pb-6 ${tieneDobleBoleta ? 'rounded-b-lg shadow-2xl' : 'rounded-lg shadow-2xl'}`}>
                         <div className="text-center mb-6">
                           <h2 className="text-xl font-bold tracking-widest uppercase mb-1">Saturnalita</h2>
-                          <p className="text-xs text-slate-500">RECIBO COMERCIAL ({divisa})</p>
+                          <p className="text-xs text-slate-500">{esSteam ? 'RECIBO DE INTERCAMBIO STEAM' : `RECIBO COMERCIAL (${divisa})`}</p>
                           <p className="text-xs text-slate-500 mt-2">FECHA: {new Date(detalleVenta.fecha_venta).toLocaleDateString('es-CL')}</p>
                           <p className="text-xs text-slate-500">TICKET #: {String(detalleVenta.id_venta).padStart(5, '0')}</p>
                         </div>
@@ -879,16 +893,16 @@ export const HistorialPage = () => {
                         </div>
                         <div className="border-t-2 border-dashed border-slate-300 mb-4"></div>
                         <div className="space-y-2 text-sm mb-4">
-                          <div className="flex justify-between font-bold"><span>DESCRIPCIÓN</span><span>IMPORTE</span></div>
-                          <div className="flex justify-between"><span>1x {detalleVenta.nombre_estilo || 'Estilo Base'}</span><span>${formatearDinero(detalleVenta.precio_estilo, esCLP)}</span></div>
+                          <div className="flex justify-between font-bold"><span>DESCRIPCIÓN</span>{!esSteam && <span>IMPORTE</span>}</div>
+                          <div className="flex justify-between"><span>1x {detalleVenta.nombre_estilo || 'Estilo Base'}</span>{!esSteam && <span>${formatearDinero(detalleVenta.precio_estilo, esCLP)}</span>}</div>
                           {detalleVenta.modificadores.map((mod, index) => (
-                            <div key={index} className="flex justify-between pl-4 text-slate-600"><span>+ {mod.nombre}</span><span>${formatearDinero(mod.precio, esCLP)}</span></div>
+                            <div key={index} className="flex justify-between pl-4 text-slate-600"><span>+ {mod.nombre}</span>{!esSteam && <span>${formatearDinero(mod.precio, esCLP)}</span>}</div>
                           ))}
                         </div>
-                        <div className="flex justify-between text-sm font-bold mt-4 pt-2 border-t border-slate-300">
+                        {!esSteam && <div className="flex justify-between text-sm font-bold mt-4 pt-2 border-t border-slate-300">
                           <span>SUBTOTAL BRUTO</span><span>${formatearDinero(subtotalBruto, esCLP)}</span>
-                        </div>
-                        {!esCLP && (
+                        </div>}
+                        {!esCLP && !esSteam && (
                           <div className="space-y-1 text-sm mt-4 mb-4 text-slate-600">
                             {detalleVenta.plataforma_origen === 'VGen' ? (
                               <>
@@ -910,9 +924,24 @@ export const HistorialPage = () => {
                           </div>
                         )}
                         <div className="border-t-2 border-dashed border-slate-300 mb-4 mt-4"></div>
-                        <div className="flex justify-between items-center mb-6">
-                          <span className="text-base font-bold">NETO USD</span><span className="text-2xl font-black">${formatearDinero(totalFinal, esCLP)}</span>
-                        </div>
+                        {esSteam ? (
+                          <div className="mb-6">
+                            <p className="text-xs font-bold tracking-wider text-slate-500 mb-2">JUEGO RECIBIDO</p>
+                            {detalleVenta.steam_game_image && <img src={detalleVenta.steam_game_image} alt="" className="w-full h-28 object-cover rounded-lg mb-3 bg-slate-100" />}
+                            <p className="text-lg font-black text-slate-900">{detalleVenta.steam_game_name || 'Juego de Steam'}</p>
+                            <p className="text-xs text-slate-500 mt-1">Steam App ID: {detalleVenta.steam_app_id || '—'}</p>
+                            {detalleVenta.steam_game_price_clp != null && (
+                              <p className="text-xs text-slate-500 mt-1">Precio referencial al registrar: ${Number(detalleVenta.steam_game_price_clp).toLocaleString('es-CL')} CLP</p>
+                            )}
+                            {detalleVenta.steam_app_id && (
+                              <a href={`https://store.steampowered.com/app/${detalleVenta.steam_app_id}`} target="_blank" rel="noreferrer" className="inline-block text-xs text-blue-600 hover:underline mt-2">Ver ficha en Steam</a>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-center mb-6">
+                            <span className="text-base font-bold">{esCLP ? 'TOTAL CLP' : 'NETO USD'}</span><span className="text-2xl font-black">${formatearDinero(totalFinal, esCLP)}</span>
+                          </div>
+                        )}
                         <button onClick={() => setModalAbierto(false)} className="w-full bg-slate-800 hover:bg-black text-white font-sans font-semibold py-3 rounded-md transition-colors mt-2 cursor-pointer">
                           Cerrar Recibo
                         </button>

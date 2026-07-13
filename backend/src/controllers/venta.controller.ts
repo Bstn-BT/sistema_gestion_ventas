@@ -15,21 +15,42 @@ export const registrarVenta = async (req: Request, res: Response) => {
             total_bruto_usd,
             comision_vgen_usd: comisionVGenIngresada,
             comision_recepcion_paypal_usd: comisionRecepcionPayPalIngresada,
+            steam_app_id: steamAppIdIngresado,
+            steam_game_name: steamGameNameIngresado,
+            steam_game_image: steamGameImageIngresada,
+            steam_game_price_clp: steamGamePriceIngresado,
         } = req.body;
 
         // Validaciones
-        if (!nombre_cliente?.trim() || !plataforma_origen || !metodo_pago || !id_estilo || !total_bruto_usd) {
+        if (!nombre_cliente?.trim() || !plataforma_origen || !metodo_pago || !id_estilo) {
             return res.status(400).json({
                 exito: false,
                 mensaje: 'Faltan datos obligatorios para registrar la comisión'
             });
         }
 
-        const bruto = Number(total_bruto_usd);
-        if (isNaN(bruto) || bruto <= 0) {
+        const esPagoSteam = metodo_pago === 'Juego de Steam';
+        const bruto = esPagoSteam ? 0 : Number(total_bruto_usd);
+        if (!esPagoSteam && (!Number.isFinite(bruto) || bruto <= 0)) {
             return res.status(400).json({
                 exito: false,
                 mensaje: 'El monto total debe ser un número mayor a 0'
+            });
+        }
+
+        const steamAppId = esPagoSteam ? Number(steamAppIdIngresado) : null;
+        const steamGameName = esPagoSteam ? String(steamGameNameIngresado || '').trim() : null;
+        const steamGameImage = esPagoSteam && typeof steamGameImageIngresada === 'string' && steamGameImageIngresada.startsWith('https://')
+            ? steamGameImageIngresada
+            : null;
+        const steamGamePrice = esPagoSteam && Number.isFinite(Number(steamGamePriceIngresado)) && Number(steamGamePriceIngresado) >= 0
+            ? Math.round(Number(steamGamePriceIngresado))
+            : null;
+
+        if (esPagoSteam && (!Number.isSafeInteger(steamAppId) || Number(steamAppId) <= 0 || !steamGameName)) {
+            return res.status(400).json({
+                exito: false,
+                mensaje: 'Debes seleccionar un juego válido desde el buscador de Steam'
             });
         }
 
@@ -70,7 +91,15 @@ export const registrarVenta = async (req: Request, res: Response) => {
         let estado_retiro = 'pendiente';
 
         // Si es transferencia bancaria, intercepta los datos
-        if (metodo_pago === 'Transferencia Bancaria') {
+        if (esPagoSteam) {
+            estado_retiro = 'retirado';
+            bruto_usd = 0;
+            neto_usd = 0;
+            final_clp = 0;
+            comision_plataforma_usd = 0;
+            comision_vgen_usd = 0;
+            comision_recepcion_paypal_usd = 0;
+        } else if (metodo_pago === 'Transferencia Bancaria') {
             estado_retiro = 'retirado';
             
             // Mueve el valor digitado a CLP y vaciamos los USD para que no se mezclen
@@ -95,13 +124,17 @@ export const registrarVenta = async (req: Request, res: Response) => {
                 comision_plataforma_usd,
                 comision_vgen_usd,
                 comision_recepcion_paypal_usd,
+                steam_app_id,
+                steam_game_name,
+                steam_game_image,
+                steam_game_price_clp,
                 comision_retiro_usd,
                 total_neto_usd,
                 total_final_clp,
                 estado_retiro,
                 fecha_retiro
             )
-            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, $7, $8, 0, $9, $10, $11, ${estado_retiro === 'retirado' ? 'CURRENT_DATE' : 'NULL'})
+            VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15, ${estado_retiro === 'retirado' ? 'CURRENT_DATE' : 'NULL'})
             RETURNING id_venta;
         `;
 
@@ -109,11 +142,15 @@ export const registrarVenta = async (req: Request, res: Response) => {
             nombre_cliente.trim(),
             plataforma_origen,
             metodo_pago,
-            metodo_pago === 'Transferencia Bancaria' ? 'CLP' : (moneda_origen || 'USD'),
+            esPagoSteam ? 'STM' : (metodo_pago === 'Transferencia Bancaria' ? 'CLP' : (moneda_origen || 'USD')),
             bruto_usd,
             comision_plataforma_usd,
             comision_vgen_usd,
             comision_recepcion_paypal_usd,
+            steamAppId,
+            steamGameName,
+            steamGameImage,
+            steamGamePrice,
             neto_usd,
             final_clp,
             estado_retiro
@@ -127,7 +164,7 @@ export const registrarVenta = async (req: Request, res: Response) => {
             RETURNING id_detalle;
         `;
 
-        const resDetalle = await client.query(queryDetalle, [idVenta, id_estilo, bruto]);
+        const resDetalle = await client.query(queryDetalle, [idVenta, id_estilo, esPagoSteam ? 0 : bruto]);
         const idDetalle = resDetalle.rows[0].id_detalle;
 
         if (modificadores && modificadores.length > 0) {
@@ -136,7 +173,7 @@ export const registrarVenta = async (req: Request, res: Response) => {
                 VALUES ($1, $2, $3);
             `;
             for (const mod of modificadores) {
-                const precioMod = parseFloat(mod.precio) || 0;
+                const precioMod = esPagoSteam ? 0 : (parseFloat(mod.precio) || 0);
                 await client.query(queryModificador, [idDetalle, mod.id, precioMod]);
             }
         }
@@ -145,9 +182,11 @@ export const registrarVenta = async (req: Request, res: Response) => {
 
         res.status(201).json({
             exito: true,
-            mensaje: estado_retiro === 'retirado' 
-                ? '¡Comisión registrada! Al ser transferencia, se guardó directamente en CLP y está marcada como retirada.' 
-                : '¡Comisión registrada con éxito! Recuerda marcarla como "retirada" cuando muevas el dinero a tu banco.',
+            mensaje: esPagoSteam
+                ? `¡Comisión registrada! Se guardó ${steamGameName} como juego recibido.`
+                : estado_retiro === 'retirado'
+                    ? '¡Comisión registrada! Al ser transferencia, se guardó directamente en CLP y está marcada como retirada.'
+                    : '¡Comisión registrada con éxito! Recuerda marcarla como "retirada" cuando muevas el dinero a tu banco.',
             id_venta: idVenta,
             resumen: {
                 total_bruto_usd: bruto_usd,
@@ -156,7 +195,9 @@ export const registrarVenta = async (req: Request, res: Response) => {
                 comision_recepcion_paypal_usd,
                 total_neto_usd: neto_usd,
                 total_final_clp: final_clp,
-                estado_retiro
+                estado_retiro,
+                steam_app_id: steamAppId,
+                steam_game_name: steamGameName,
             }
         });
 
@@ -188,6 +229,10 @@ export const marcarComoRetirada = async (req: Request, res: Response) => {
         }
 
         const venta = ventaActual.rows[0];
+
+        if (venta.metodo_pago === 'Juego de Steam') {
+            return res.status(400).json({ exito: false, mensaje: 'Los juegos de Steam no requieren retiro' });
+        }
 
         if (venta.estado_retiro === 'retirado') {
             return res.status(400).json({ exito: false, mensaje: 'Esta venta ya fue marcada como retirada' });
@@ -242,6 +287,10 @@ export const obtenerVentas = async (req: Request, res: Response) => {
                 v.comision_plataforma_usd,
                 v.comision_vgen_usd,
                 v.comision_recepcion_paypal_usd,
+                v.steam_app_id,
+                v.steam_game_name,
+                v.steam_game_image,
+                v.steam_game_price_clp,
                 v.comision_retiro_usd,
                 v.total_neto_usd,
                 v.total_final_clp,
@@ -345,7 +394,13 @@ export const retirarMasivo = async (req: Request, res: Response) => {
         await client.query('BEGIN');
 
         // Busca todas las ventas seleccionadas que estén pendientes
-        const queryVentas = `SELECT id_venta, total_bruto_usd, comision_plataforma_usd FROM VENTA WHERE id_venta = ANY($1) AND estado_retiro = 'pendiente'`;
+        const queryVentas = `
+            SELECT id_venta, total_bruto_usd, comision_plataforma_usd
+            FROM VENTA
+            WHERE id_venta = ANY($1)
+              AND estado_retiro = 'pendiente'
+              AND metodo_pago <> 'Juego de Steam'
+        `;
         const resultVentas = await client.query(queryVentas, [ids]);
         const ventas = resultVentas.rows;
 

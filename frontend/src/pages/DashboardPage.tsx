@@ -89,13 +89,16 @@ export const DashboardPage = () => {
     const ingresosPorMes: Record<string, number> = {};
 
     ventas.forEach((v) => {
-      // 1. Tarjetas de Resumen
-      clpGanado += Number(v.total_final_clp || 0);
-      
-      if (v.estado_retiro === 'pendiente') {
-        usdPendiente += Number(v.total_neto_usd || 0);
-      } else {
-        usdRetirado += Number(v.total_neto_usd || 0);
+      const esJuegoSteam = v.metodo_pago === 'Juego de Steam';
+
+      // Los juegos son compensaciones no monetarias y no alteran los indicadores financieros.
+      if (!esJuegoSteam) {
+        clpGanado += Number(v.total_final_clp || 0);
+        if (v.estado_retiro === 'pendiente') {
+          usdPendiente += Number(v.total_neto_usd || 0);
+        } else {
+          usdRetirado += Number(v.total_neto_usd || 0);
+        }
       }
 
       // 2. Gráfico de Pastel (De dónde vienen los clientes)
@@ -106,7 +109,7 @@ export const DashboardPage = () => {
       const fecha = new Date(v.fecha_venta);
       const mes = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
       
-      if (v.metodo_pago !== 'Transferencia Bancaria') {
+      if (v.metodo_pago !== 'Transferencia Bancaria' && !esJuegoSteam) {
         ingresosPorMes[mes] = (ingresosPorMes[mes] || 0) + Number(v.total_neto_usd || 0);
       }
     });

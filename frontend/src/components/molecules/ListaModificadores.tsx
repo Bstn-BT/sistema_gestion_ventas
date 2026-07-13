@@ -10,9 +10,10 @@ interface Modificador {
 interface ListaModificadoresProps {
   onExtrasChange: (extras: any[]) => void;
   divisa: string;
+  esPagoEnJuego?: boolean;
 }
 
-export const ListaModificadores = ({ onExtrasChange, divisa }: ListaModificadoresProps) => {
+export const ListaModificadores = ({ onExtrasChange, divisa, esPagoEnJuego = false }: ListaModificadoresProps) => {
   const [modificadores, setModificadores] = useState<Modificador[]>([]);
   const [seleccionados, setSeleccionados] = useState<{ [key: number]: boolean }>({});
   const [preciosLocales, setPreciosLocales] = useState<{ [key: number]: string }>({});
@@ -43,11 +44,11 @@ export const ListaModificadores = ({ onExtrasChange, divisa }: ListaModificadore
       .filter(id => seleccionados[Number(id)])
       .map(id => ({
         id: Number(id),
-        precio: preciosLocales[Number(id)] || 0 
+        precio: esPagoEnJuego ? 0 : (preciosLocales[Number(id)] || 0)
       }));
       
     onExtrasChange(extrasActivos);
-  }, [seleccionados, preciosLocales, onExtrasChange]); 
+  }, [seleccionados, preciosLocales, onExtrasChange, esPagoEnJuego]);
 
   const handleCheckboxChange = (id: number) => {
     setSeleccionados(prev => ({ ...prev, [id]: !prev[id] }));
@@ -89,7 +90,7 @@ export const ListaModificadores = ({ onExtrasChange, divisa }: ListaModificadore
       
       <div className="space-y-2 max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-slate-50 mb-4">
         {modificadores.map((mod) => (
-          <div key={mod.id} className="grid grid-cols-[1fr_120px] items-center gap-3 p-2 bg-white rounded-md border border-slate-100 shadow-xs">
+          <div key={mod.id} className={`grid ${esPagoEnJuego ? 'grid-cols-1' : 'grid-cols-[1fr_120px]'} items-center gap-3 p-2 bg-white rounded-md border border-slate-100 shadow-xs`}>
             <label className="flex items-center space-x-3 cursor-pointer">
               <input 
                 type="checkbox" 
@@ -100,7 +101,7 @@ export const ListaModificadores = ({ onExtrasChange, divisa }: ListaModificadore
               <span className="text-sm text-slate-700 font-medium">{mod.nombre}</span>
             </label>
 
-            <div className="flex items-center justify-end space-x-1">
+            {!esPagoEnJuego && <div className="flex items-center justify-end space-x-1">
               <span className={seleccionados[mod.id] ? 'text-xs text-slate-400 font-semibold' : 'text-xs text-transparent font-semibold'}>{divisa}</span>
               <input 
                 type="number"
@@ -110,7 +111,7 @@ export const ListaModificadores = ({ onExtrasChange, divisa }: ListaModificadore
                 className={`w-20 px-2 py-1 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-right ${seleccionados[mod.id] ? '' : 'opacity-0 pointer-events-none'}`}
                 disabled={!seleccionados[mod.id]}
               />
-            </div>
+            </div>}
           </div>
         ))}
       </div>

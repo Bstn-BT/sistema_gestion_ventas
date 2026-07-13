@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SelectEstilo } from '../molecules/SelectEstilo';
 import { ListaModificadores } from '../molecules/ListaModificadores';
+import { BuscadorJuegoSteam, type JuegoSteam } from '../molecules/BuscadorJuegoSteam';
 import toast from 'react-hot-toast';
 
 // Dropdown para plataformas usando imágenes desde public/
@@ -82,6 +83,7 @@ const PaymentDropdown = ({ metodoPago, setMetodoPago }: { metodoPago: string; se
   const options = [
     { label: 'PayPal', value: 'PayPal', img: '/PayPal.png' },
     { label: 'Transferencia Bancaria', value: 'Transferencia Bancaria', img: '/transferencia.png' },
+    { label: 'Juego de Steam', value: 'Juego de Steam', img: '/steam.svg' },
   ];
 
   const selected = options.find(o => o.value === metodoPago) || options[0];
@@ -120,6 +122,7 @@ export const FormularioComision = () => {
   const [precioBase, setPrecioBase] = useState('');
   const [comisionVGen, setComisionVGen] = useState('');
   const [comisionRecepcionPayPal, setComisionRecepcionPayPal] = useState('');
+  const [juegoSteam, setJuegoSteam] = useState<JuegoSteam | null>(null);
   const [cargando, setCargando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
@@ -127,21 +130,22 @@ export const FormularioComision = () => {
   const [mensajeExito, setMensajeExito] = useState('');
 
   const esTransferenciaCLP = metodoPago === 'Transferencia Bancaria';
+  const esPagoSteam = metodoPago === 'Juego de Steam';
   const esVentaVGenPayPal = plataforma === 'VGen' && metodoPago === 'PayPal';
-  const divisa = esTransferenciaCLP ? 'CLP' : 'USD';
+  const divisa = esPagoSteam ? 'STEAM' : (esTransferenciaCLP ? 'CLP' : 'USD');
 
   const resumen = useMemo(() => {
-    const base = parseFloat(precioBase) || 0;
-    const sumaModificadores = modificadores.reduce((acc, mod) => acc + (parseFloat(mod.precio) || 0), 0);
+    const base = esPagoSteam ? 0 : (parseFloat(precioBase) || 0);
+    const sumaModificadores = esPagoSteam ? 0 : modificadores.reduce((acc, mod) => acc + (parseFloat(mod.precio) || 0), 0);
     const bruto = base + sumaModificadores;
     
     const tarifaVGen = esVentaVGenPayPal ? (parseFloat(comisionVGen) || 0) : 0;
     const tarifaRecepcionPayPal = esVentaVGenPayPal ? (parseFloat(comisionRecepcionPayPal) || 0) : 0;
     const totalComisiones = tarifaVGen + tarifaRecepcionPayPal;
-    const neto = esTransferenciaCLP ? bruto : parseFloat((bruto - totalComisiones).toFixed(2));
+    const neto = esPagoSteam ? 0 : (esTransferenciaCLP ? bruto : parseFloat((bruto - totalComisiones).toFixed(2)));
     
     return { base, sumaModificadores, bruto, tarifaVGen, tarifaRecepcionPayPal, totalComisiones, neto };
-  }, [precioBase, modificadores, comisionVGen, comisionRecepcionPayPal, esTransferenciaCLP, esVentaVGenPayPal]);
+  }, [precioBase, modificadores, comisionVGen, comisionRecepcionPayPal, esTransferenciaCLP, esVentaVGenPayPal, esPagoSteam]);
 
   const formatearDinero = (monto: number) => {
     return esTransferenciaCLP ? monto.toLocaleString('es-CL') : monto.toFixed(2);
@@ -158,10 +162,14 @@ export const FormularioComision = () => {
       nuevosErrores.idEstilo = 'Por favor selecciona un estilo para el encargo.';
     }
     
-    if (!precioBase) {
-      nuevosErrores.precioBase = 'Ingresa el precio base del estilo.';
-    } else if (resumen.bruto <= 0) {
-      nuevosErrores.precioBase = 'El monto total debe ser mayor a 0.';
+    if (esPagoSteam) {
+      if (!juegoSteam) nuevosErrores.juegoSteam = 'Selecciona un juego desde los resultados de Steam.';
+    } else {
+      if (!precioBase) {
+        nuevosErrores.precioBase = 'Ingresa el precio base del estilo.';
+      } else if (resumen.bruto <= 0) {
+        nuevosErrores.precioBase = 'El monto total debe ser mayor a 0.';
+      }
     }
 
     if (esVentaVGenPayPal) {
@@ -207,6 +215,10 @@ export const FormularioComision = () => {
       total_bruto_usd: resumen.bruto,
       comision_vgen_usd: resumen.tarifaVGen,
       comision_recepcion_paypal_usd: resumen.tarifaRecepcionPayPal,
+      steam_app_id: esPagoSteam ? juegoSteam?.appid : null,
+      steam_game_name: esPagoSteam ? juegoSteam?.nombre : null,
+      steam_game_image: esPagoSteam ? juegoSteam?.imagen : null,
+      steam_game_price_clp: esPagoSteam ? juegoSteam?.precio_referencia_clp : null,
       precio_base: resumen.base,
     };
 
@@ -235,7 +247,7 @@ export const FormularioComision = () => {
   return (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm w-full max-w-2xl relative">
       <h2 className="text-lg font-semibold text-slate-800 mb-6 border-b pb-4">
-        Detalles del Encargo y Finanzas
+        Detalles del Encargo y Compensación
       </h2>
 
       <div className="mb-4 flex flex-col w-full max-w-sm" data-error={!!errores.nombreCliente}>
@@ -279,6 +291,17 @@ export const FormularioComision = () => {
 
       <hr className="border-slate-100 my-5" />
 
+      {esPagoSteam && (
+        <BuscadorJuegoSteam
+          juego={juegoSteam}
+          onJuegoChange={(juego) => {
+            setJuegoSteam(juego);
+            if (errores.juegoSteam) setErrores({ ...errores, juegoSteam: '' });
+          }}
+          error={errores.juegoSteam}
+        />
+      )}
+
       <div data-error={!!errores.idEstilo} className="relative">
         <SelectEstilo onEstiloChange={(id) => {
           setIdEstilo(id);
@@ -291,9 +314,9 @@ export const FormularioComision = () => {
         )}
       </div>
 
-      <ListaModificadores onExtrasChange={setModificadores} divisa={divisa} />
+      <ListaModificadores onExtrasChange={setModificadores} divisa={divisa} esPagoEnJuego={esPagoSteam} />
 
-      <div className="mt-6 flex flex-col w-full max-w-sm" data-error={!!errores.precioBase}>
+      {!esPagoSteam && <div className="mt-6 flex flex-col w-full max-w-sm" data-error={!!errores.precioBase}>
         <label className="block text-sm font-semibold text-gray-700 mb-1">
           Precio Base del Estilo ({divisa})
         </label>
@@ -321,7 +344,7 @@ export const FormularioComision = () => {
             <span className="mr-1">▲</span> {errores.precioBase}
           </span>
         )}
-      </div>
+      </div>}
 
       {esVentaVGenPayPal && (
         <div className="mt-4 max-w-xl">
@@ -379,7 +402,7 @@ export const FormularioComision = () => {
         </div>
       )}
 
-      {resumen.bruto > 0 && (
+      {!esPagoSteam && resumen.bruto > 0 && (
         <div className="mt-4 max-w-sm bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-sm">
           <p className="font-semibold text-slate-700 mb-3">Resumen del registro</p>
 

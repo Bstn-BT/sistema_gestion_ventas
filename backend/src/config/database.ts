@@ -27,6 +27,22 @@ export const connectDB = async () => {
                 ADD COLUMN IF NOT EXISTS comision_recepcion_paypal_usd NUMERIC(12, 2) NOT NULL DEFAULT 0
             `);
             await client.query(`
+                ALTER TABLE VENTA
+                ADD COLUMN IF NOT EXISTS steam_app_id BIGINT
+            `);
+            await client.query(`
+                ALTER TABLE VENTA
+                ADD COLUMN IF NOT EXISTS steam_game_name TEXT
+            `);
+            await client.query(`
+                ALTER TABLE VENTA
+                ADD COLUMN IF NOT EXISTS steam_game_image TEXT
+            `);
+            await client.query(`
+                ALTER TABLE VENTA
+                ADD COLUMN IF NOT EXISTS steam_game_price_clp INTEGER
+            `);
+            await client.query(`
                 UPDATE VENTA
                 SET comision_vgen_usd = comision_plataforma_usd
                 WHERE plataforma_origen = 'VGen'

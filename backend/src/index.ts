@@ -6,6 +6,7 @@ import { connectDB } from './config/database';
 import catalogoRoutes from './routes/catalogo.routes';
 import ventaRoutes from './routes/venta.routes';
 import dolarRoutes from './routes/dolar.routes';
+import steamRoutes from './routes/steam.routes';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use(express.json());
 app.use('/api/catalogos', catalogoRoutes);
 app.use('/api/ventas', ventaRoutes);
 app.use('/api/dolar', dolarRoutes);
+app.use('/api/steam', steamRoutes);
 app.use('/api/modificadores', catalogoRoutes);
 
 const iniciarServidor = async () => {
