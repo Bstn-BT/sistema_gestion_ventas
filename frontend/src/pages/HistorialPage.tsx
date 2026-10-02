@@ -1,5 +1,12 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
+import { Pencil, Trash2 } from 'lucide-react';
+import {
+  ModalEditarVenta,
+  ModalEliminarVenta,
+  type EstiloEdicion,
+  type FormularioEdicionVenta
+} from '../components/organisms/GestionVentaModals';
 
 interface Venta {
   id_venta: number;
@@ -24,8 +31,9 @@ interface Venta {
 }
 
 interface DetalleVenta extends Venta {
+  id_tipo_comision: number;
   precio_estilo: string;
-  modificadores: { nombre: string; precio: string }[];
+  modificadores: { id?: number; nombre: string; precio: string }[];
 }
 
 interface Filtros {
@@ -239,6 +247,15 @@ export const HistorialPage = () => {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [boletaVista, setBoletaVista] = useState<'comercial' | 'bancaria'>('comercial');
 
+  // Edición y eliminación de comisiones
+  const [ventaEditando, setVentaEditando] = useState<DetalleVenta | null>(null);
+  const [formularioEdicion, setFormularioEdicion] = useState<FormularioEdicionVenta | null>(null);
+  const [estilosEdicion, setEstilosEdicion] = useState<EstiloEdicion[]>([]);
+  const [cargandoEdicion, setCargandoEdicion] = useState<number | null>(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [ventaAEliminar, setVentaAEliminar] = useState<Venta | null>(null);
+  const [eliminandoVenta, setEliminandoVenta] = useState(false);
+
   // Modal de retiro masivo
   const [modalDolar, setModalDolar] = useState(false);
   const [valorDolarInput, setValorDolarInput] = useState('');
@@ -421,6 +438,130 @@ export const HistorialPage = () => {
     }
   };
 
+  const abrirEdicionVenta = async (venta: Venta, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setCargandoEdicion(venta.id_venta);
+
+    try {
+      const [respuestaVenta, respuestaCatalogo] = await Promise.all([
+        fetch(`http://localhost:3000/api/ventas/${venta.id_venta}`),
+        fetch('http://localhost:3000/api/catalogos')
+      ]);
+      const [datosVenta, datosCatalogo] = await Promise.all([
+        respuestaVenta.json(),
+        respuestaCatalogo.json()
+      ]);
+
+      if (!respuestaVenta.ok || !datosVenta.exito) {
+        throw new Error(datosVenta.mensaje || 'No fue posible cargar la comisión');
+      }
+
+      if (!respuestaCatalogo.ok || !datosCatalogo.exito) {
+        throw new Error(datosCatalogo.mensaje || 'No fue posible cargar los estilos');
+      }
+
+      const detalle = datosVenta.venta as DetalleVenta;
+      setEstilosEdicion((datosCatalogo.estilos || []).map((estilo: any) => ({
+        id: estilo.id_tipo_comision,
+        nombre: estilo.nombre_estilo,
+        activo: estilo.activo !== false
+      })));
+      setFormularioEdicion({
+        nombre_cliente: detalle.nombre_cliente,
+        plataforma_origen: detalle.plataforma_origen,
+        fecha_venta: String(detalle.fecha_venta).slice(0, 10),
+        id_estilo: String(detalle.id_tipo_comision || ''),
+        total_bruto: detalle.metodo_pago === 'Transferencia Bancaria'
+          ? String(Math.round(Number(detalle.total_final_clp)))
+          : String(Number(detalle.total_bruto_usd)),
+        comision_vgen_usd: String(Number(detalle.comision_vgen_usd || 0)),
+        comision_recepcion_paypal_usd: String(Number(detalle.comision_recepcion_paypal_usd || 0))
+      });
+      setVentaEditando(detalle);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible abrir la edición');
+    } finally {
+      setCargandoEdicion(null);
+    }
+  };
+
+  const actualizarFormularioEdicion = (campo: keyof FormularioEdicionVenta, valor: string) => {
+    setFormularioEdicion(prev => prev ? { ...prev, [campo]: valor } : prev);
+  };
+
+  const guardarEdicionVenta = async () => {
+    if (!ventaEditando || !formularioEdicion) return;
+
+    setGuardandoEdicion(true);
+    try {
+      const respuesta = await fetch(`http://localhost:3000/api/ventas/${ventaEditando.id_venta}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre_cliente: formularioEdicion.nombre_cliente,
+          plataforma_origen: formularioEdicion.plataforma_origen,
+          fecha_venta: formularioEdicion.fecha_venta,
+          id_estilo: Number(formularioEdicion.id_estilo),
+          total_bruto: formularioEdicion.total_bruto,
+          comision_vgen_usd: formularioEdicion.comision_vgen_usd,
+          comision_recepcion_paypal_usd: formularioEdicion.comision_recepcion_paypal_usd
+        })
+      });
+      const datos = await respuesta.json();
+
+      if (!respuesta.ok || !datos.exito) {
+        throw new Error(datos.mensaje || 'No fue posible actualizar la comisión');
+      }
+
+      toast.success(datos.mensaje);
+      setVentaEditando(null);
+      setFormularioEdicion(null);
+      if (detalleVenta?.id_venta === ventaEditando.id_venta) {
+        setModalAbierto(false);
+        setDetalleVenta(null);
+      }
+      await cargarVentas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible actualizar la comisión');
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  };
+
+  const solicitarEliminarVenta = (venta: Venta, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setVentaAEliminar(venta);
+  };
+
+  const eliminarVenta = async () => {
+    if (!ventaAEliminar) return;
+
+    setEliminandoVenta(true);
+    try {
+      const respuesta = await fetch(`http://localhost:3000/api/ventas/${ventaAEliminar.id_venta}`, {
+        method: 'DELETE'
+      });
+      const datos = await respuesta.json();
+
+      if (!respuesta.ok || !datos.exito) {
+        throw new Error(datos.mensaje || 'No fue posible eliminar la comisión');
+      }
+
+      toast.success(datos.mensaje);
+      setSeleccionadas(prev => prev.filter(id => id !== ventaAEliminar.id_venta));
+      if (detalleVenta?.id_venta === ventaAEliminar.id_venta) {
+        setModalAbierto(false);
+        setDetalleVenta(null);
+      }
+      setVentaAEliminar(null);
+      await cargarVentas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar la comisión');
+    } finally {
+      setEliminandoVenta(false);
+    }
+  };
+
   const formatearDinero = (monto: string | number, esCLP: boolean) => {
     if (esCLP) return Number(monto).toLocaleString('es-CL');
     return parseFloat(String(monto) || '0').toFixed(2);
@@ -565,6 +706,7 @@ export const HistorialPage = () => {
                     <th className="px-4 py-3 text-left">Fecha</th>
                     <th className="px-4 py-3 text-right">Monto</th>
                     <th className="px-4 py-3 text-center">Estado</th>
+                    <th className="px-4 py-3 text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -632,6 +774,27 @@ export const HistorialPage = () => {
                               Pendiente
                             </span>
                           )}
+                        </td>
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(event) => abrirEdicionVenta(v, event)}
+                              disabled={cargandoEdicion === v.id_venta}
+                              title="Editar comisión"
+                              className="rounded-lg p-2 text-slate-400 transition hover:bg-emerald-50 hover:text-[#0e8571] disabled:opacity-40"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => solicitarEliminarVenta(v, event)}
+                              title="Eliminar comisión"
+                              className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -720,6 +883,33 @@ export const HistorialPage = () => {
           </>
         )}
       </div>
+
+      {ventaEditando && formularioEdicion && (
+        <ModalEditarVenta
+          venta={ventaEditando}
+          formulario={formularioEdicion}
+          estilos={estilosEdicion}
+          plataformas={PLATAFORMAS}
+          guardando={guardandoEdicion}
+          onChange={actualizarFormularioEdicion}
+          onClose={() => {
+            if (!guardandoEdicion) {
+              setVentaEditando(null);
+              setFormularioEdicion(null);
+            }
+          }}
+          onSubmit={guardarEdicionVenta}
+        />
+      )}
+
+      {ventaAEliminar && (
+        <ModalEliminarVenta
+          venta={ventaAEliminar}
+          eliminando={eliminandoVenta}
+          onClose={() => !eliminandoVenta && setVentaAEliminar(null)}
+          onConfirm={eliminarVenta}
+        />
+      )}
 
       {modalDolar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">

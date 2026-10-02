@@ -213,6 +213,245 @@ export const registrarVenta = async (req: Request, res: Response) => {
     }
 };
 
+export const actualizarVenta = async (req: Request, res: Response) => {
+    const client = await pool.connect();
+
+    try {
+        const parametroId = Array.isArray(req.params.id) ? '' : req.params.id;
+        const idVenta = Number(parametroId);
+
+        if (!Number.isInteger(idVenta) || idVenta <= 0) {
+            return res.status(400).json({ exito: false, mensaje: 'Identificador de comisión inválido' });
+        }
+
+        await client.query('BEGIN');
+
+        const ventaActualResult = await client.query(`
+            SELECT v.*, dv.id_detalle, dv.id_tipo_comision
+            FROM VENTA v
+            LEFT JOIN DETALLE_VENTA dv ON dv.id_venta = v.id_venta
+            WHERE v.id_venta = $1
+            FOR UPDATE OF v
+        `, [idVenta]);
+
+        if (!ventaActualResult.rowCount) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ exito: false, mensaje: 'Comisión no encontrada' });
+        }
+
+        const ventaActual = ventaActualResult.rows[0];
+        const nombreCliente = typeof req.body.nombre_cliente === 'string'
+            ? req.body.nombre_cliente.trim()
+            : '';
+        const plataformaOrigen = typeof req.body.plataforma_origen === 'string'
+            ? req.body.plataforma_origen.trim()
+            : '';
+        const fechaVenta = typeof req.body.fecha_venta === 'string'
+            ? req.body.fecha_venta.trim()
+            : '';
+        const idEstilo = Number(req.body.id_estilo);
+
+        if (!nombreCliente || !plataformaOrigen || !/^\d{4}-\d{2}-\d{2}$/.test(fechaVenta)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ exito: false, mensaje: 'Completa correctamente el cliente, la plataforma y la fecha' });
+        }
+
+        if (!Number.isInteger(idEstilo) || idEstilo <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ exito: false, mensaje: 'Selecciona un estilo válido' });
+        }
+
+        const estiloExiste = await client.query(
+            'SELECT 1 FROM TIPO_COMISION WHERE id_tipo_comision = $1',
+            [idEstilo]
+        );
+
+        if (!estiloExiste.rowCount) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ exito: false, mensaje: 'El estilo seleccionado ya no existe' });
+        }
+
+        const esSteam = ventaActual.metodo_pago === 'Juego de Steam';
+        const esTransferencia = ventaActual.metodo_pago === 'Transferencia Bancaria';
+        const aplicaComisionesVGen = plataformaOrigen === 'VGen' && ventaActual.metodo_pago === 'PayPal';
+
+        let totalBrutoUsd = 0;
+        let totalNetoUsd = 0;
+        let totalFinalClp = Number(ventaActual.total_final_clp || 0);
+        let comisionVGenUsd = 0;
+        let comisionRecepcionPayPalUsd = 0;
+        let comisionPlataformaUsd = 0;
+        let comisionRetiroUsd = Number(ventaActual.comision_retiro_usd || 0);
+        let estadoRetiro = ventaActual.estado_retiro;
+        let fechaRetiro = ventaActual.fecha_retiro;
+        let precioEstilo = 0;
+        let retiroReiniciado = false;
+
+        if (esSteam) {
+            estadoRetiro = 'retirado';
+            totalFinalClp = 0;
+            comisionRetiroUsd = 0;
+            precioEstilo = 0;
+        } else {
+            const montoIngresado = Number(req.body.total_bruto);
+
+            if (!Number.isFinite(montoIngresado) || montoIngresado <= 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ exito: false, mensaje: 'El monto debe ser mayor a 0' });
+            }
+
+            precioEstilo = montoIngresado;
+
+            if (esTransferencia) {
+                totalFinalClp = Math.round(montoIngresado);
+                estadoRetiro = 'retirado';
+                comisionRetiroUsd = 0;
+            } else {
+                totalBrutoUsd = Number(montoIngresado.toFixed(2));
+                comisionVGenUsd = aplicaComisionesVGen ? Number(req.body.comision_vgen_usd ?? 0) : 0;
+                comisionRecepcionPayPalUsd = aplicaComisionesVGen
+                    ? Number(req.body.comision_recepcion_paypal_usd ?? 0)
+                    : 0;
+
+                if (
+                    !Number.isFinite(comisionVGenUsd) || comisionVGenUsd < 0 ||
+                    !Number.isFinite(comisionRecepcionPayPalUsd) || comisionRecepcionPayPalUsd < 0
+                ) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ exito: false, mensaje: 'Las comisiones deben ser montos válidos' });
+                }
+
+                comisionVGenUsd = Number(comisionVGenUsd.toFixed(2));
+                comisionRecepcionPayPalUsd = Number(comisionRecepcionPayPalUsd.toFixed(2));
+                comisionPlataformaUsd = Number((comisionVGenUsd + comisionRecepcionPayPalUsd).toFixed(2));
+
+                if (comisionPlataformaUsd > totalBrutoUsd) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ exito: false, mensaje: 'Las comisiones no pueden superar el monto bruto' });
+                }
+
+                totalNetoUsd = Number((totalBrutoUsd - comisionPlataformaUsd).toFixed(2));
+
+                const cambioFinanciero =
+                    Math.abs(totalBrutoUsd - Number(ventaActual.total_bruto_usd || 0)) > 0.001 ||
+                    Math.abs(comisionVGenUsd - Number(ventaActual.comision_vgen_usd || 0)) > 0.001 ||
+                    Math.abs(comisionRecepcionPayPalUsd - Number(ventaActual.comision_recepcion_paypal_usd || 0)) > 0.001;
+
+                if (ventaActual.estado_retiro === 'retirado' && cambioFinanciero) {
+                    estadoRetiro = 'pendiente';
+                    fechaRetiro = null;
+                    totalFinalClp = 0;
+                    comisionRetiroUsd = 0;
+                    retiroReiniciado = true;
+                }
+            }
+        }
+
+        await client.query(`
+            UPDATE VENTA
+            SET nombre_cliente = $1,
+                plataforma_origen = $2,
+                fecha_venta = $3,
+                total_bruto_usd = $4,
+                comision_plataforma_usd = $5,
+                comision_vgen_usd = $6,
+                comision_recepcion_paypal_usd = $7,
+                comision_retiro_usd = $8,
+                total_neto_usd = $9,
+                total_final_clp = $10,
+                estado_retiro = $11,
+                fecha_retiro = $12
+            WHERE id_venta = $13
+        `, [
+            nombreCliente,
+            plataformaOrigen,
+            fechaVenta,
+            totalBrutoUsd,
+            comisionPlataformaUsd,
+            comisionVGenUsd,
+            comisionRecepcionPayPalUsd,
+            comisionRetiroUsd,
+            totalNetoUsd,
+            totalFinalClp,
+            estadoRetiro,
+            fechaRetiro,
+            idVenta
+        ]);
+
+        if (ventaActual.id_detalle) {
+            await client.query(`
+                UPDATE DETALLE_VENTA
+                SET id_tipo_comision = $1,
+                    precio_acordado = $2
+                WHERE id_detalle = $3
+            `, [idEstilo, precioEstilo, ventaActual.id_detalle]);
+        } else {
+            await client.query(`
+                INSERT INTO DETALLE_VENTA (id_venta, id_tipo_comision, precio_acordado)
+                VALUES ($1, $2, $3)
+            `, [idVenta, idEstilo, precioEstilo]);
+        }
+
+        await client.query('COMMIT');
+
+        res.json({
+            exito: true,
+            mensaje: retiroReiniciado
+                ? 'Comisión actualizada. El retiro volvió a pendiente porque cambió el monto.'
+                : 'Comisión actualizada correctamente',
+            retiro_reiniciado: retiroReiniciado
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error al actualizar venta:', error);
+        res.status(500).json({ exito: false, mensaje: 'Error interno al actualizar la comisión' });
+    } finally {
+        client.release();
+    }
+};
+
+export const eliminarVenta = async (req: Request, res: Response) => {
+    const client = await pool.connect();
+
+    try {
+        const parametroId = Array.isArray(req.params.id) ? '' : req.params.id;
+        const idVenta = Number(parametroId);
+
+        if (!Number.isInteger(idVenta) || idVenta <= 0) {
+            return res.status(400).json({ exito: false, mensaje: 'Identificador de comisión inválido' });
+        }
+
+        await client.query('BEGIN');
+
+        await client.query(`
+            DELETE FROM DETALLE_MODIFICADOR dm
+            USING DETALLE_VENTA dv
+            WHERE dm.id_detalle = dv.id_detalle
+              AND dv.id_venta = $1
+        `, [idVenta]);
+
+        await client.query('DELETE FROM DETALLE_VENTA WHERE id_venta = $1', [idVenta]);
+        const result = await client.query(
+            'DELETE FROM VENTA WHERE id_venta = $1 RETURNING id_venta, nombre_cliente',
+            [idVenta]
+        );
+
+        if (!result.rowCount) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ exito: false, mensaje: 'Comisión no encontrada' });
+        }
+
+        await client.query('COMMIT');
+        res.json({ exito: true, mensaje: 'Comisión eliminada correctamente' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error al eliminar venta:', error);
+        res.status(500).json({ exito: false, mensaje: 'Error interno al eliminar la comisión' });
+    } finally {
+        client.release();
+    }
+};
+
 export const marcarComoRetirada = async (req: Request, res: Response) => {
     const client = await pool.connect();
 
@@ -323,11 +562,13 @@ export const obtenerVentaPorId = async (req: Request, res: Response) => {
         const result = await pool.query(`
             SELECT 
                 v.*,
+                dv.id_tipo_comision,
                 tc.nombre_estilo,
                 dv.precio_acordado AS precio_estilo,
                 COALESCE(
                     json_agg(
                         json_build_object(
+                            'id', m.id_modificador,
                             'nombre', m.nombre_modificador,
                             'precio', dm.precio_acordado
                         )
@@ -340,7 +581,7 @@ export const obtenerVentaPorId = async (req: Request, res: Response) => {
             LEFT JOIN DETALLE_MODIFICADOR dm ON dv.id_detalle = dm.id_detalle
             LEFT JOIN MODIFICADOR m ON dm.id_modificador = m.id_modificador
             WHERE v.id_venta = $1
-            GROUP BY v.id_venta, tc.nombre_estilo, dv.precio_acordado
+            GROUP BY v.id_venta, dv.id_tipo_comision, tc.nombre_estilo, dv.precio_acordado
         `, [id]);
 
         if (result.rows.length === 0) {

@@ -11,10 +11,12 @@ export const SelectEstilo = ( { onEstiloChange }: { onEstiloChange: (value: numb
         const res = await fetch('http://localhost:3000/api/catalogos');
         const data = await res.json();
         // Mapea los datos de Postgres a lo que nuestro Select espera
-        const mapeo = data.estilos.map((e: any) => ({
-          id: e.id_tipo_comision,
-          nombre: e.nombre_estilo
-        }));
+        const mapeo = (data.estilos || [])
+          .filter((e: any) => e.activo !== false)
+          .map((e: any) => ({
+            id: e.id_tipo_comision,
+            nombre: e.nombre_estilo
+          }));
         setEstilos(mapeo);
       } catch (error) {
         console.error('Error cargando estilos:', error);

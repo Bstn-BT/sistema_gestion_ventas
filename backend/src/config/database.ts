@@ -43,6 +43,14 @@ export const connectDB = async () => {
                 ADD COLUMN IF NOT EXISTS steam_game_price_clp INTEGER
             `);
             await client.query(`
+                ALTER TABLE TIPO_COMISION
+                ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE
+            `);
+            await client.query(`
+                ALTER TABLE MODIFICADOR
+                ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE
+            `);
+            await client.query(`
                 UPDATE VENTA
                 SET comision_vgen_usd = comision_plataforma_usd
                 WHERE plataforma_origen = 'VGen'

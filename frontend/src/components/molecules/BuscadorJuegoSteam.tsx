@@ -132,7 +132,7 @@ export const BuscadorJuegoSteam = ({ juego, onJuegoChange, error }: Props) => {
         )}
       </div>
 
-      <p className="text-xs text-slate-400 mt-1.5">Selecciona un resultado de Steam; no se registrará como dinero.</p>
+      <p className="text-xs text-slate-400 mt-1.5">Selecciona un resultado de Steam.</p>
       {(error || mensajeError) && <p className="text-red-500 text-xs mt-1.5 font-medium">▲ {error || mensajeError}</p>}
 
       {juego && (
